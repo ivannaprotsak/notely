@@ -81,7 +81,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 .f1{font-size:clamp(13px, .94vw, 18px)}
 .f2{font-size:clamp(15px, 1.25vw, 24px);max-width:15.6em}
 
-.hint{position:absolute;left:50%;bottom:calc(clamp(40px, 15.4vh, 162px) + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);
+.hint{position:absolute;left:50%;bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);
   display:flex;align-items:center;gap:8px;padding:.27em 1.07em;border:1px solid var(--paper);border-radius:999px;background:transparent;
   font:500 clamp(18px, 1.56vw, 30px)/1.2 var(--font);letter-spacing:-.03em;color:var(--paper);cursor:pointer;transition:background .2s, opacity .3s}
 .hint:hover{background:color-mix(in srgb, var(--paper) 12%, transparent)}
@@ -261,44 +261,47 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   const footChars = [...foot.querySelectorAll("p")].flatMap(p => split(p));
 
   /* ---------- WebGL sequins ---------- */
-  let gl = null, prog, buf, uRes, uDpr;
-  const STRIDE = 7;
+  let gl = null, prog, buf, uRes, uDpr, atlasTex;
+  const STRIDE = 8;
   try {
     gl = glc.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false });
   } catch (e) { gl = null; }
   if (gl) {
     const vs = `
-      attribute vec2 aPos; attribute float aSize; attribute float aRot; attribute float aTilt; attribute float aLight; attribute float aAlpha;
+      attribute vec2 aPos; attribute float aSize; attribute float aRot; attribute float aTilt; attribute float aLight; attribute float aAlpha; attribute float aGlyph;
       uniform vec2 uRes; uniform float uDpr;
-      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha;
+      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha; varying float vGlyph;
       void main(){
         vec2 c = aPos / uRes * 2.0 - 1.0;
         gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
         gl_PointSize = aSize * uDpr;
-        vRot = aRot; vTilt = aTilt; vLight = aLight; vAlpha = aAlpha;
+        vRot = aRot; vTilt = aTilt; vLight = aLight; vAlpha = aAlpha; vGlyph = aGlyph;
       }`;
     const fs = `
       precision mediump float;
-      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha;
+      uniform sampler2D uAtlas;
+      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha; varying float vGlyph;
       void main(){
         vec2 p = gl_PointCoord * 2.0 - 1.0;
         float c = cos(vRot), s = sin(vRot);
         p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-        float t = max(abs(vTilt), 0.38);
-        vec2 q = vec2(p.x, p.y / t);
-        float r = length(q);
-        if (r > 1.0) discard;
-        float edge = smoothstep(1.0, 0.72, r);
+        float t = max(abs(vTilt), 0.18);
+        vec2 q = vec2(p.x / t, p.y);             /* the letter turns around its vertical axis */
+        if (abs(q.x) > 1.0) discard;
+        if (vTilt < 0.0) q.x = -q.x;               /* back side shows mirrored */
+        vec2 uv = q * 0.5 + 0.5;
+        vec2 cell = vec2(mod(vGlyph, 8.0), floor(vGlyph / 8.0));
+        float ink = texture2D(uAtlas, (cell + uv) / 8.0).a;
+        if (ink < 0.02) discard;
         vec3 dark = vec3(0.46, 0.13, 0.0);
-        vec3 base = vec3(0.902, 0.318, 0.0);   /* button colour #e65100 */
-        vec3 col = mix(dark, base, 0.45 + 0.55 * t);
-        col = mix(col, vec3(0.97, 0.40, 0.04), step(0.0, vTilt) * 0.22);
+        vec3 base = vec3(0.902, 0.318, 0.0);     /* button colour #e65100 */
+        vec3 col = mix(dark, base, 0.4 + 0.6 * t);
+        col = mix(col, vec3(0.98, 0.42, 0.05), step(0.0, vTilt) * 0.25);
         float L = clamp(vLight, 0.0, 1.0);
-        col = mix(col, vec3(1.0, 0.74, 0.50), L * 0.78);
-        float spec = pow(max(0.0, 1.0 - length(q - vec2(-0.32, -0.38)) * 1.15), 3.0);
-        col += vec3(1.0, 0.9, 0.78) * spec * (0.10 + 0.75 * L) * t;
-        col *= 0.9 + 0.1 * (1.0 - r);
-        float a = edge * vAlpha;
+        col = mix(col, vec3(1.0, 0.76, 0.52), L * 0.8);
+        float sheen = pow(max(0.0, 1.0 - abs(p.x + p.y * 0.6 - vTilt * 1.2) * 1.4), 3.0);
+        col += vec3(1.0, 0.88, 0.72) * sheen * (0.18 + 0.7 * L) * t;
+        float a = ink * vAlpha;
         gl_FragColor = vec4(col * a, a);
       }`;
     const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
@@ -309,7 +312,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     else {
       gl.useProgram(prog);
       buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      const names = ["aPos", "aSize", "aRot", "aTilt", "aLight", "aAlpha"], sizes = [2, 1, 1, 1, 1, 1];
+      const names = ["aPos", "aSize", "aRot", "aTilt", "aLight", "aAlpha", "aGlyph"], sizes = [2, 1, 1, 1, 1, 1, 1];
       let off = 0;
       names.forEach((nm, k) => {
         const loc = gl.getAttribLocation(prog, nm);
@@ -318,9 +321,31 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
         off += sizes[k];
       });
       uRes = gl.getUniformLocation(prog, "uRes"); uDpr = gl.getUniformLocation(prog, "uDpr");
+      atlasTex = gl.createTexture();
+      gl.uniform1i(gl.getUniformLocation(prog, "uAtlas"), 0);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.clearColor(0, 0, 0, 0);
     }
+  }
+
+  /* ---------- glyph atlas: 8 × 8 letters ---------- */
+  const ATLAS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789";
+  let atlasReady = false;
+  function buildAtlas() {
+    if (!gl || atlasReady) return;
+    const c = document.createElement("canvas"); c.width = c.height = 512;
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = '700 46px "Space Grotesk", sans-serif';
+    [...ATLAS].forEach((ch, k) => g.fillText(ch, (k % 8) * 64 + 32, Math.floor(k / 8) * 64 + 35));
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    atlasReady = true;
   }
 
   /* ---------- smoke sprites ---------- */
@@ -342,7 +367,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   let W = 0, H = 0, DPR = 1, N = 0;
   let P = 0, target = 0, last = performance.now();
   let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, swX, swY, evR, evDX, evRise, evLetter, evCh, evRot, letterIdx, twR;
-  let dX, dY, vX, vY, light, spin, data;
+  let dX, dY, vX, vY, light, spin, data, gBase, gRate;
   let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, c3 = { x: 0, y: 0 }, R = 100;
   let emitAt = [];
   const DRAW = 0.9, FLY = 0.3; // share of the letters phase the blob spends drawing; flight time of one letter
@@ -421,6 +446,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     DPR = Math.min(2, window.devicePixelRatio || 1);
     [glc, cv, sc].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
     sizeBg();
+    buildAtlas();
     const narrow = W < 760;
     R = narrow ? Math.min(W * 0.32, H * 0.2) : Math.min(W * 0.2, H * 0.3, 420);
     c0 = { x: W * 0.5, y: H * (narrow ? 0.4 : 0.44) };
@@ -429,7 +455,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     c3 = narrow ? { x: W * 0.66, y: H * 0.28 } : { x: W * 0.76, y: H * 0.4 };
 
     const r = rnd(7);
-    N = narrow ? 1000 : 2000;
+    N = narrow ? 1400 : 2800;
     const nS = sampleN();
     const A = n => new Float32Array(n);
     nX = A(N); nY = A(N); bA = A(N); bR = A(N); delay = A(N); phase = A(N); flip0 = A(N); flipRate = A(N);
@@ -437,6 +463,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     dX = A(N); dY = A(N); vX = A(N); vY = A(N); light = A(N); spin = A(N);
     evLetter = new Uint8Array(N); evCh = new Array(N); letterIdx = new Int16Array(N).fill(-1);
     data = new Float32Array(N * STRIDE);
+    gBase = A(N); gRate = A(N);
     const np = nS.pts.length / 2;
     const maxEvapLetters = narrow ? 240 : 480; let evCount = 0;
     const seqBase = 2 * Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
@@ -449,7 +476,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       delay[i] = r(); phase[i] = r() * Math.PI * 2;
       flip0[i] = r() * Math.PI * 2; flipRate[i] = 0.3 + r() * 0.9; twR[i] = 0.4 + r() * 1.4;
       size[i] = seqBase * (0.8 + r() * 0.5);
-      rot0[i] = r() * Math.PI;
+      rot0[i] = (r() - 0.5) * 0.9;
+      gBase[i] = Math.floor(r() * 62); gRate[i] = 0.15 + r() * 0.6;
       const a = r() * Math.PI * 2, m = 0.4 + r() * 0.9; swX[i] = Math.cos(a) * m; swY[i] = Math.sin(a) * m;
       evR[i] = r(); evDX[i] = (r() - .5) * 1.6; evRise[i] = 0.25 + r() * 0.4; evRot[i] = (r() - .5) * 1.6;
       evCh[i] = evapChars[(r() * evapChars.length) | 0];
@@ -598,7 +626,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     if (!active) { ptr.vx *= Math.exp(-dt * 8); ptr.vy *= Math.exp(-dt * 8); }
 
     // envelope of the irregular round blob
-    const env = a => 1 + 0.13 * Math.sin(3 * a + 0.7 * t) + 0.08 * Math.sin(5 * a - 1.1 * t + 1.3) + 0.06 * Math.sin(2 * a + 0.45 * t + 2);
+    const env = a => 1 + 0.14 * Math.sin(3 * a + 1.5 * t) + 0.09 * Math.sin(5 * a - 2.2 * t + 1.3) + 0.07 * Math.sin(2 * a + 1.0 * t + 2);
 
     let count = 0;
     for (let i = 0; i < N; i++) {
@@ -607,7 +635,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       const nx = nX[i] + (Math.sin(t * 0.9 + nY[i] * 0.012) * 5 + Math.sin(t * 1.7 + ph) * 1.2) * motion;
       const ny = nY[i] + (Math.cos(t * 0.75 + nX[i] * 0.011) * 4 + Math.cos(t * 1.3 + ph) * 1.2) * motion;
       // blob: irregular round shape, always turning, inner layers faster
-      const ang = bA[i] + t * (0.05 + 0.1 * (1 - bR[i])) * motion;
+      const ang = bA[i] + t * (0.13 + 0.24 * (1 - bR[i])) * motion;
       const rr = R * bR[i] * env(ang);
       const bx = cx + Math.cos(ang) * rr * 1.1;
       const by = cy + Math.sin(ang) * rr * 0.96 + Math.sin(t * 0.9 + ph) * 2 * motion;
@@ -643,10 +671,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       light[i] = Math.max(clamp(spd / 380), light[i] * Math.exp(-dt * 2.2));
 
       let x = hx + dX[i], y = hy + dY[i];
-      const tilt = Math.cos(flip0[i] + t * flipRate[i] * 0.35 * motion + spin[i]);
+      const tilt = Math.cos(flip0[i] + t * flipRate[i] * 0.5 * motion + spin[i]);
       const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion;
       let lt = Math.max(light[i], glint);
-      let alpha = 1, s = size[i] * (1 + 0.15 * mi), rot = rot0[i] + spin[i] * 0.3;
+      let alpha = 1, s = size[i] * (1 + 0.15 * mi), rot = rot0[i] + Math.sin(spin[i] * 0.3) * 0.6;
 
       const li = letterIdx[i];
       let gen = li < 0 && pL > 0 && pE <= 0;
@@ -684,17 +712,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
           s *= 1 - q * 0.5;
         }
       }
-      if (gen && i % 4 === 0) {
-        const c = (t * 0.55 + ph / 6.283 + i * 0.013) % 1;
-        if (c < 0.3) {
-          const w = Math.sin(c / 0.3 * Math.PI) * Math.pow(Math.sin(clamp(pL / 0.92) * Math.PI), 0.4);
-          letters.push({ x, y, a: rot0[i] * 0.3, k: 1 + size[i] / 40, ch: glyph(Math.floor(t * 9) + i), font: GENF, m: 1, white: 0.15, alpha: w * 0.95, evap: 1, glow: 1 });
-          alpha *= 1 - w * 0.9;
-        }
-      }
       if (alpha <= 0.01) continue;
       const o = count * STRIDE;
       data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot; data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
+      data[o + 7] = (gBase[i] + Math.floor(t * gRate[i] * motion + spin[i] * 0.5)) % 62;
       count++;
     }
 
@@ -706,14 +727,16 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       gl.drawArrays(gl.POINTS, 0, count);
     } else {
       // simple fallback without WebGL
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
       for (let j = 0; j < count; j++) {
         const o = j * STRIDE, L2 = data[o + 5];
         ctx.globalAlpha = data[o + 6];
         ctx.fillStyle = `rgb(${lerp(230, 255, L2) | 0},${lerp(81, 190, L2) | 0},${lerp(0, 128, L2) | 0})`;
-        ctx.beginPath();
-        ctx.ellipse(data[o], data[o + 1], data[o + 2] / 2, Math.max(.24, Math.abs(data[o + 4])) * data[o + 2] / 2, data[o + 3], 0, Math.PI * 2);
-        ctx.fill();
+        ctx.font = `700 ${Math.round(data[o + 2] * 0.72)}px "Space Grotesk", sans-serif`;
+        ctx.setTransform(DPR * Math.max(.18, Math.abs(data[o + 4])), 0, 0, DPR, data[o] * DPR, data[o + 1] * DPR);
+        ctx.fillText(ATLAS[data[o + 7] | 0], 0, 0);
       }
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       ctx.globalAlpha = 1;
     }
 
