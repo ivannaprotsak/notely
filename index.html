@@ -345,11 +345,14 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   let dX, dY, vX, vY, light, spin, data;
   let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, c3 = { x: 0, y: 0 }, R = 100;
   let emitAt = [];
-  const DRAW = 0.9, FLY = 0.2; // share of the letters phase the blob spends drawing; flight time of one letter
+  const DRAW = 0.9, FLY = 0.3; // share of the letters phase the blob spends drawing; flight time of one letter
   let slots = [], path = null;
   const evapChars = "LettheAItakenotesnotely";
   const BIG = 2.1;
   const EVF = '700 18px "Space Grotesk", sans-serif';
+  const GENF = '700 15px "Space Grotesk", sans-serif';
+  const GLYPHS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const glyph = n => GLYPHS[((n % GLYPHS.length) + GLYPHS.length) % GLYPHS.length];
 
   // pointer
   const ptr = { x: -9999, y: -9999, mx: 0, my: 0, lastT: 0, emitX: 0, emitY: 0, vx: 0, vy: 0, inside: false };
@@ -426,7 +429,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     c3 = narrow ? { x: W * 0.66, y: H * 0.28 } : { x: W * 0.76, y: H * 0.4 };
 
     const r = rnd(7);
-    N = narrow ? 1700 : 3400;
+    N = narrow ? 1000 : 2000;
     const nS = sampleN();
     const A = n => new Float32Array(n);
     nX = A(N); nY = A(N); bA = A(N); bR = A(N); delay = A(N); phase = A(N); flip0 = A(N); flipRate = A(N);
@@ -436,11 +439,12 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     data = new Float32Array(N * STRIDE);
     const np = nS.pts.length / 2;
     const maxEvapLetters = narrow ? 240 : 480; let evCount = 0;
-    const seqBase = Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
+    const seqBase = 2 * Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
     for (let i = 0; i < N; i++) {
       const k = Math.floor(r() * np);
-      nX[i] = nS.ox + nS.pts[k * 2] + (r() - .5) * nS.step;
-      nY[i] = nS.oy + nS.pts[k * 2 + 1] + (r() - .5) * nS.step;
+      const fa = r() * Math.PI * 2, fz = r() < 0.22 ? 0.03 + r() * 0.07 : r() * 0.025;
+      nX[i] = nS.ox + nS.pts[k * 2] + (r() - .5) * nS.step + Math.cos(fa) * fz * nS.hN;
+      nY[i] = nS.oy + nS.pts[k * 2 + 1] + (r() - .5) * nS.step + Math.sin(fa) * fz * nS.hN;
       bA[i] = r() * Math.PI * 2; bR[i] = Math.pow(r(), 0.62);
       delay[i] = r(); phase[i] = r() * Math.PI * 2;
       flip0[i] = r() * Math.PI * 2; flipRate[i] = 0.3 + r() * 0.9; twR[i] = 0.4 + r() * 1.4;
@@ -456,7 +460,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     for (let k = 0; k < L; k++) { let i; do { i = (r() * N) | 0; } while (used.has(i)); used.add(i); letterIdx[i] = k; }
     // the blob writes the captions as one steady stream of letters while it travels left → right
     const r2 = rnd(11), nS2 = slots.length;
-    emitAt = slots.map((sl, k) => 0.02 + (k / Math.max(1, nS2 - 1)) * 0.74 + (r2() - 0.5) * 0.006);
+    emitAt = slots.map((sl, k) => clamp(0.03 + (k / Math.max(1, nS2 - 1)) * 0.6 + (r2() - 0.5) * 0.12, 0.01, 0.68));
   }
 
   /* ---------- pointer + smoke ---------- */
@@ -584,10 +588,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     ptr.mx = ptr.my = 0;
     const active = moved > 0.5 && motion;
     if (active) stir = Math.min(1.6, stir + Math.min(speed, 3000) / 1000 * dt * 0.6);
-    stir *= Math.exp(-dt * (active ? 0.12 : 0.7));
-    const k = 38 / (1 + stir * 4);
+    stir *= Math.exp(-dt * (active ? 0.12 : 1.8));
+    const k = 95 / (1 + stir * 3);
     const rad = Math.min(Math.min(W, H) * 0.32, 55 + stir * 120);
-    const damp = Math.exp(-dt * 2.8);
+    const damp = Math.exp(-dt * 4.2);
     const maxD = Math.min(W, H) * 0.24;
     const imp = Math.min(1, dt * 60);
     const pvx = ptr.vx, pvy = ptr.vy;
@@ -636,7 +640,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       vX[i] = vx; vY[i] = vy;
       const spd = Math.hypot(vx, vy);
       spin[i] += spd * dt * 0.025;
-      light[i] = Math.max(clamp(spd / 320), light[i] * Math.exp(-dt * 1.4));
+      light[i] = Math.max(clamp(spd / 380), light[i] * Math.exp(-dt * 2.2));
 
       let x = hx + dX[i], y = hy + dY[i];
       const tilt = Math.cos(flip0[i] + t * flipRate[i] * 0.35 * motion + spin[i]);
@@ -645,30 +649,26 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       let alpha = 1, s = size[i] * (1 + 0.15 * mi), rot = rot0[i] + spin[i] * 0.3;
 
       const li = letterIdx[i];
+      let gen = li < 0 && pL > 0 && pE <= 0;
       if (li >= 0 && pL > 0) {
         const sl = slots[li];
         const pr = clamp((pL - emitAt[li]) / FLY);
         if (pr > 0) {
-          const tipX = cx - R * 0.55, tipY = cy + R * 0.55;
-          let lx, ly, ang2 = 0, q = 0;
-          if (pr < 0.16) {
-            const g = ease(pr / 0.16);
-            lx = lerp(x, tipX, g); ly = lerp(y, tipY, g);
-          } else {
-            q = ease((pr - 0.16) / 0.84);
-            const u1 = 1 - q;
-            const kx = Math.min(tipX, sl.x) + (tipX - sl.x) * 0.15 - R * 0.25, ky = Math.max(tipY, sl.y) + H * 0.04;
-            lx = u1 * u1 * tipX + 2 * u1 * q * kx + q * q * sl.x;
-            ly = u1 * u1 * tipY + 2 * u1 * q * ky + q * q * sl.y;
-            const dxq = 2 * u1 * (kx - tipX) + 2 * q * (sl.x - kx), dyq = 2 * u1 * (ky - tipY) + 2 * q * (sl.y - ky);
-            ang2 = Math.atan2(dyq, dxq);
-            if (ang2 > Math.PI / 2) ang2 -= Math.PI; else if (ang2 < -Math.PI / 2) ang2 += Math.PI;
-            ang2 *= 0.6 * (1 - q);
-          }
-          const m = clamp(pr / 0.1), white = clamp((pr - 0.5) / 0.5);
-          letters.push({ x: lx, y: ly, a: ang2, k: lerp(BIG, 1, q), ch: sl.ch, font: sl.font, m, white, alpha: 1 - domFoot, glow: 1 - white });
+          // rise out of the blob from where the sequin sits, drift outwards, then glide into place
+          const ox = x - cx, oy = y - cy, od = Math.hypot(ox, oy) || 1;
+          const kx = x + ox / od * R * 0.45 + (sl.x - x) * 0.2, ky = y + oy / od * R * 0.25 - H * 0.12;
+          const q = ease(pr), u1 = 1 - q;
+          const lx = u1 * u1 * x + 2 * u1 * q * kx + q * q * sl.x;
+          const ly = u1 * u1 * y + 2 * u1 * q * ky + q * q * sl.y;
+          const lock = clamp((pr - 0.62) / 0.12);           // moment the right letter is chosen
+          const ch = lock > 0 ? sl.ch : glyph(Math.floor(t * 13 + li * 7.3) + li);
+          const m = clamp(pr / 0.12), white = Math.max(lock * 0.85, clamp((pr - 0.8) / 0.2));
+          const spinA = (swX[i] * 1.2) * (1 - q);
+          const pop = lock > 0 && lock < 1 ? 1 + Math.sin(lock * Math.PI) * 0.35 : 1;
+          letters.push({ x: lx, y: ly, a: spinA, k: lerp(BIG, 1, q) * pop, ch, font: sl.font, m, white, alpha: 1 - domFoot,
+            glow: Math.max(1 - white, Math.sin(lock * Math.PI)) });
           x = lx; y = ly; alpha = 1 - m; lt = Math.max(lt, m);
-        }
+        } else if (pL < 1) gen = true;
       } else if (li < 0 && pE > 0) {
         const e = clamp(pE * 1.7 - evR[i] * 0.7);
         if (e > 0) {
@@ -682,6 +682,14 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
           } else alpha *= Math.pow(1 - q, 1.6);
           lt = Math.max(lt, q * 0.8);
           s *= 1 - q * 0.5;
+        }
+      }
+      if (gen && i % 4 === 0) {
+        const c = (t * 0.55 + ph / 6.283 + i * 0.013) % 1;
+        if (c < 0.3) {
+          const w = Math.sin(c / 0.3 * Math.PI) * Math.pow(Math.sin(clamp(pL / 0.92) * Math.PI), 0.4);
+          letters.push({ x, y, a: rot0[i] * 0.3, k: 1 + size[i] / 40, ch: glyph(Math.floor(t * 9) + i), font: GENF, m: 1, white: 0.15, alpha: w * 0.95, evap: 1, glow: 1 });
+          alpha *= 1 - w * 0.9;
         }
       }
       if (alpha <= 0.01) continue;
