@@ -371,7 +371,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   let W = 0, H = 0, DPR = 1, N = 0;
   let P = 0, target = 0, last = performance.now();
   let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, swX, swY, evR, evDX, evRise, evLetter, evCh, evRot, letterIdx, twR;
-  let dX, dY, vX, vY, light, spin, data, gBase, gRate;
+  let dX, dY, vX, vY, light, spin, data, gBase, gRate, gT, resp;
   let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, c3 = { x: 0, y: 0 }, R = 100;
   let emitAt = [];
   const DRAW = 0.9, FLY = 0.3; // share of the letters phase the blob spends drawing; flight time of one letter
@@ -467,7 +467,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     dX = A(N); dY = A(N); vX = A(N); vY = A(N); light = A(N); spin = A(N);
     evLetter = new Uint8Array(N); evCh = new Array(N); letterIdx = new Int16Array(N).fill(-1);
     data = new Float32Array(N * STRIDE);
-    gBase = A(N); gRate = A(N);
+    gBase = A(N); gRate = A(N); gT = A(N); resp = A(N);
     const np = nS.pts.length / 2;
     const maxEvapLetters = narrow ? 240 : 480; let evCount = 0;
     const seqBase = 2 * Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
@@ -482,6 +482,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       size[i] = seqBase * (0.8 + r() * 0.5);
       rot0[i] = (r() - 0.5) * 0.9;
       gBase[i] = Math.floor(r() * 62); gRate[i] = 0.15 + r() * 0.6;
+      resp[i] = r() < 0.4 ? 0.08 + r() * 0.17 : 0.55 + r() * 0.55;
       const a = r() * Math.PI * 2, m = 0.4 + r() * 0.9; swX[i] = Math.cos(a) * m; swY[i] = Math.sin(a) * m;
       evR[i] = r(); evDX[i] = (r() - .5) * 1.6; evRise[i] = 0.25 + r() * 0.4; evRot[i] = (r() - .5) * 1.6;
       evCh[i] = evapChars[(r() * evapChars.length) | 0];
@@ -516,7 +517,35 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       dx = x - ptr.emitX; dy = y - ptr.emitY; dist = Math.hypot(dx, dy);
     }
   }
+  // boxes of the text currently on screen; smoke fades out around them so the copy stays readable
+  let textRects = [], rectsAt = -1;
+  const textEls = [".logo", ".nav", ".cta", "#hint", "#s2", "#s3", "#headline", "#foot"].map(q => document.querySelector(q));
+  function shown(el) {
+    if (el.id === "s2") return tp2.shown > 0 && tp2.out < 0.98;
+    if (el.id === "s3") return tp3.shown > 0 && tp3.out < 0.98;
+    if (el.id === "headline") return tpH.shown > 0;
+    if (el.id === "foot" || el.id === "hint") return parseFloat(el.style.opacity || "1") > 0.05;
+    return el.offsetParent !== null || getComputedStyle(el).display !== "none";
+  }
+  function updateRects(now) {
+    if (now - rectsAt < 100) return;
+    rectsAt = now;
+    const sr = stage.getBoundingClientRect();
+    textRects = textEls.filter(el => el && shown(el)).map(el => {
+      const r = el.getBoundingClientRect();
+      return r.width && r.height ? [r.left - sr.left, r.top - sr.top, r.right - sr.left, r.bottom - sr.top] : null;
+    }).filter(Boolean);
+  }
+  function textDist(x, y) {
+    let d = 1e9;
+    for (const [l, tp, rr, b] of textRects) {
+      const dx = Math.max(l - x, 0, x - rr), dy = Math.max(tp - y, 0, y - b);
+      d = Math.min(d, Math.hypot(dx, dy));
+    }
+    return d;
+  }
   function emit(x, y, vx, vy) {
+    if (textDist(x, y) < 24) return;
     if (puffs.length > 1600) puffs.shift();
     const sp = Math.min(1, Math.hypot(vx, vy) / 2500);
     puffs.push({ x, y, vx: vx * 0.42 + (Math.random() - .5) * 40, vy: vy * 0.42 + (Math.random() - .5) * 40,
@@ -531,6 +560,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     sctx.clearRect(0, 0, W, H);
     drawDust(performance.now() / 1000);
+    updateRects(performance.now());
     for (let i = puffs.length - 1; i >= 0; i--) {
       const p = puffs[i];
       p.age += dt;
@@ -541,7 +571,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       const t = p.age / p.life;
       const a = (t < 0.08 ? t / 0.08 : 1) * Math.pow(1 - t, 1.6) * p.a;
       const s = lerp(p.s0, p.s1, easeOut(t));
-      sctx.globalAlpha = a;
+      const clear = clamp((textDist(p.x, p.y) - s * 0.15) / (s * 0.75));
+      if (clear <= 0.01) continue;
+      sctx.globalAlpha = a * clear;
       sctx.save(); sctx.translate(p.x, p.y); sctx.rotate(p.rot);
       sctx.drawImage(smokeSprites[p.k], -s, -s, s * 2, s * 2);
       sctx.restore();
@@ -646,8 +678,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     for (let i = 0; i < N; i++) {
       const ph = phase[i];
       // "n": the whole letter breathes and ripples
-      const nx = nX[i] + (Math.sin(t * 0.9 + nY[i] * 0.012) * 5 + Math.sin(t * 1.7 + ph) * 1.2) * motion;
-      const ny = nY[i] + (Math.cos(t * 0.75 + nX[i] * 0.011) * 4 + Math.cos(t * 1.3 + ph) * 1.2) * motion;
+      // each letter circles slowly, a wave runs through the strokes, and the whole n floats
+      const orb = 5 + twR[i] * 6, osp = (0.5 + flipRate[i] * 0.7) * (swX[i] < 0 ? -1 : 1);
+      const nx = nX[i] + (Math.cos(t * osp + ph) * orb + Math.sin(t * 0.8 - nY[i] * 0.01) * 11 + Math.sin(t * 0.35) * 8) * motion;
+      const ny = nY[i] + (Math.sin(t * osp + ph) * orb + Math.cos(t * 0.65 - nX[i] * 0.012) * 7 + Math.sin(t * 0.5 + 1) * 9) * motion;
       // blob: irregular round shape, always turning, inner layers faster
       const ang = bA[i] + t * (0.13 + 0.24 * (1 - bR[i])) * motion;
       const halo = clamp((bR[i] - 0.82) / 0.6);
@@ -668,14 +702,15 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
         if (dd < rad) {
           let f = 1 - dd / rad; f *= f;
           const inv = 1 / (dd + 1e-3);
-          vx += (ex * inv * 150 * (0.5 + stir) + pvx * 0.2 * (1 + stir * 0.6)) * f * imp;
-          vy += (ey * inv * 150 * (0.5 + stir) + pvy * 0.2 * (1 + stir * 0.6)) * f * imp;
+          vx += (ex * inv * 150 * (0.5 + stir) + pvx * 0.2 * (1 + stir * 0.6)) * f * imp * resp[i];
+          vy += (ey * inv * 150 * (0.5 + stir) + pvy * 0.2 * (1 + stir * 0.6)) * f * imp * resp[i];
         }
       }
       vx = (vx - dX[i] * k * dt) * damp; vy = (vy - dY[i] * k * dt) * damp;
       dX[i] += vx * dt; dY[i] += vy * dt;
       const dm = Math.hypot(dX[i], dY[i]);
-      if (dm > maxD) { dX[i] *= maxD / dm; dY[i] *= maxD / dm; vx *= 0.5; vy *= 0.5; }
+      const md = maxD * Math.min(1, resp[i] * 1.2);
+      if (dm > md) { dX[i] *= md / dm; dY[i] *= md / dm; vx *= 0.5; vy *= 0.5; }
       // keep every sequin inside the screen
       const m = 12, sx = hx + dX[i], sy = hy + dY[i];
       if (sx < m) { dX[i] = m - hx; vx = Math.abs(vx) * 0.3; } else if (sx > W - m) { dX[i] = W - m - hx; vx = -Math.abs(vx) * 0.3; }
@@ -686,8 +721,11 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       light[i] = Math.max(clamp(spd / 380), light[i] * Math.exp(-dt * 2.2));
 
       let x = hx + dX[i], y = hy + dY[i];
-      const tilt = Math.cos(flip0[i] + t * flipRate[i] * 0.5 * motion + spin[i]);
-      const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion;
+      // on the n letters face forward (they only turn when pushed); in the blob they keep flipping
+      const tiltN = Math.cos(spin[i]) * (0.88 + 0.12 * Math.sin(t * 0.9 + ph));
+      const tilt = lerp(tiltN, Math.cos(flip0[i] + t * flipRate[i] * 0.5 * motion + spin[i]), mi);
+      const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion * mi;
+      gT[i] += dt * gRate[i] * mi * motion;
       let lt = Math.max(light[i], glint);
       let alpha = 1 - halo * mi * (0.55 + 0.25 * Math.sin(t * 1.3 + ph)), s = size[i] * (1 + 0.15 * mi) * (1 - halo * mi * 0.35), rot = rot0[i] + Math.sin(spin[i] * 0.3) * 0.6;
 
@@ -730,7 +768,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       if (alpha <= 0.01) continue;
       const o = count * STRIDE;
       data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot; data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
-      data[o + 7] = (gBase[i] + Math.floor(t * gRate[i] * motion + spin[i] * 0.5)) % 62;
+      data[o + 7] = (gBase[i] + Math.floor(gT[i] + spin[i] * 0.5)) % 62;
       count++;
     }
 
