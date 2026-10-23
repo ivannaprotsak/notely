@@ -58,10 +58,13 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 .bottom > *{grid-area:1/1}
 
 .big{font-weight:700;line-height:1;letter-spacing:-.08em;margin:0;text-wrap:balance}
-.s2{font-size:clamp(28px, 3.34vw, 64px);width:min(48vw, 100%);justify-self:center;text-align:center;margin-bottom:.1em}
-/* side copy: centred on the screen height, independent of the header */
-.s3{position:absolute;top:50%;left:max(var(--pad), env(safe-area-inset-left, 0px));transform:translateY(-50%);
-  font-size:clamp(28px, 3.34vw, 64px);width:min(43.2vw, calc(100% - 2 * var(--pad)))}
+/* scene copy: heading + small line; both scenes sit on the screen's vertical centre */
+.scene{position:absolute;top:50%;--h:clamp(28px, 3.34vw, 64px);display:grid;gap:calc(var(--h) * 0.47)}
+.scene .big{font-size:var(--h)}
+.scene .sub{margin:0;font-size:clamp(14px, .94vw, 18px);line-height:1.2;letter-spacing:-.03em}
+.scene2{left:max(26.56vw, var(--pad));transform:translateY(calc(var(--h) * -0.58));width:min(44vw, calc(100% - 2 * var(--pad)))}
+.scene3{left:max(var(--pad), env(safe-area-inset-left, 0px));transform:translateY(-50%);width:min(43.2vw, calc(100% - 2 * var(--pad)))}
+.scene3 .sub{margin-left:calc(26.56vw - var(--pad));width:max(200px, 14.5vw)}
 .w{display:inline-block;white-space:nowrap}
 .ch{display:inline-block;position:relative;visibility:hidden}
 .ch.on{visibility:visible}
@@ -95,8 +98,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   .nav{display:none}
   .headline{white-space:normal;font-size:clamp(40px, 13vw, 96px);line-height:.92}
   .foot{grid-template-columns:1fr;gap:14px}
-  .s3{width:calc(100% - 2 * var(--pad))}
-  .s2{width:100%}
+  .scene2,.scene3{left:var(--pad);width:calc(100% - 2 * var(--pad))}
+  .scene3 .sub{margin-left:0;width:auto;max-width:22em}
 }
 @media (prefers-reduced-motion:reduce){.hint svg,.ch.cur::after,.ch.cur0::after{animation:none}}
 </style>
@@ -121,11 +124,17 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     </header>
 
     <div class="mid">
-      <h2 class="big s3" id="s3">Get a summary of your calls and completed tasks with minimal effort</h2>
+      <div class="scene scene2">
+        <h2 class="big" id="s2">notely. is an AI app for managers and programmers</h2>
+        <p class="sub" id="s2sub">who make 5 or more calls a day</p>
+      </div>
+      <div class="scene scene3">
+        <h2 class="big" id="s3">Get a summary of your calls and completed tasks with minimal effort</h2>
+        <p class="sub" id="s3sub">NOTELY records your meetings and automatically creates specific tasks</p>
+      </div>
     </div>
 
     <div class="bottom">
-      <h2 class="big s2" id="s2">notely is an AI app for managers and programmers</h2>
       <div class="final">
         <h1 class="big headline" id="headline">Let the AI take notes</h1>
         <div class="foot" id="foot">
@@ -261,6 +270,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 
   const tp2 = typer(document.getElementById("s2"));
   const tp3 = typer(document.getElementById("s3"));
+  const tp2s = typer(document.getElementById("s2sub"));
+  const tp3s = typer(document.getElementById("s3sub"));
   const tpH = typer(document.getElementById("headline"));
   const footChars = [...foot.querySelectorAll("p")].flatMap(p => split(p));
 
@@ -519,10 +530,12 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   }
   // boxes of the text currently on screen; smoke fades out around them so the copy stays readable
   let textRects = [], rectsAt = -1;
-  const textEls = [".logo", ".nav", ".cta", "#hint", "#s2", "#s3", "#headline", "#foot"].map(q => document.querySelector(q));
+  const textEls = [".logo", ".nav", ".cta", "#hint", "#s2", "#s2sub", "#s3", "#s3sub", "#headline", "#foot"].map(q => document.querySelector(q));
   function shown(el) {
     if (el.id === "s2") return tp2.shown > 0 && tp2.out < 0.98;
     if (el.id === "s3") return tp3.shown > 0 && tp3.out < 0.98;
+    if (el.id === "s2sub") return tp2s.shown > 0 && tp2s.out < 0.98;
+    if (el.id === "s3sub") return tp3s.shown > 0 && tp3s.out < 0.98;
     if (el.id === "headline") return tpH.shown > 0;
     if (el.id === "foot" || el.id === "hint") return parseFloat(el.style.opacity || "1") > 0.05;
     return el.offsetParent !== null || getComputedStyle(el).display !== "none";
@@ -815,8 +828,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     // DOM scenes: typed in, deleted out
-    type(tp2, sp(p, ...T.t2in), sp(p, ...T.t2out));
-    type(tp3, sp(p, ...T.t3in), sp(p, ...T.t3out));
+    // heading is typed first, then the small line; both evaporate together
+    const i2 = sp(p, ...T.t2in), o2 = sp(p, ...T.t2out), i3 = sp(p, ...T.t3in), o3 = sp(p, ...T.t3out);
+    type(tp2, clamp(i2 / 0.72), o2); type(tp2s, clamp((i2 - 0.72) / 0.28), clamp(o2 * 1.15 - 0.1), true);
+    type(tp3, clamp(i3 / 0.72), o3); type(tp3s, clamp((i3 - 0.72) / 0.28), clamp(o3 * 1.15 - 0.1), true);
     type(tpH, sp(p, ...T.head), 0, true);
     foot.style.opacity = domFoot;
     const ho = 1 - sp(p, ...T.hint);
