@@ -172,7 +172,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   const T = {};
   SEG.reduce((a, [k, v]) => { T[k] = [a / TOTAL, (a + v) / TOTAL]; return a + v; }, 0);
   { const [l0, l1] = T.letters, [e0, e1] = T.evap;
-    T.footIn = [l0 + (l1 - l0) * 0.93, l1 + (l1 - l0) * 0.03];
+    T.footIn = [l0 + (l1 - l0) * 0.96, l1 + (l1 - l0) * 0.05];
     T.head = [e0 + (e1 - e0) * 0.22, e1 - (e1 - e0) * 0.04];
     T.hint = [T.holdN[1] * 0.3, T.holdN[1] + (T.morph[1] - T.morph[0]) * 0.2]; }
   document.querySelector(".track").style.height = ((TOTAL + 1) * 100) + "vh";
@@ -343,10 +343,12 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   let P = 0, target = 0, last = performance.now();
   let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, swX, swY, evR, evDX, evRise, evLetter, evCh, evRot, letterIdx, twR;
   let dX, dY, vX, vY, light, spin, data;
-  let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, R = 100;
+  let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, c3 = { x: 0, y: 0 }, R = 100;
+  let emitAt = [];
+  const DRAW = 0.9, FLY = 0.2; // share of the letters phase the blob spends drawing; flight time of one letter
   let slots = [], path = null;
   const evapChars = "LettheAItakenotesnotely";
-  const BIG = 1.75;
+  const BIG = 2.1;
   const EVF = '700 18px "Space Grotesk", sans-serif';
 
   // pointer
@@ -420,7 +422,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     R = narrow ? Math.min(W * 0.32, H * 0.2) : Math.min(W * 0.2, H * 0.3, 420);
     c0 = { x: W * 0.5, y: H * (narrow ? 0.4 : 0.44) };
     c1 = narrow ? { x: W * 0.62, y: H * 0.25 } : { x: W * 0.72, y: H * 0.47 };
-    c2 = narrow ? { x: W * 0.52, y: H * 0.2 } : { x: W * 0.66, y: H * 0.36 };
+    c2 = narrow ? { x: W * 0.3, y: H * 0.3 } : { x: W * 0.17, y: H * 0.42 };
+    c3 = narrow ? { x: W * 0.66, y: H * 0.28 } : { x: W * 0.76, y: H * 0.4 };
 
     const r = rnd(7);
     N = narrow ? 1700 : 3400;
@@ -451,7 +454,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     measureSlots();
     const L = slots.length; const used = new Set();
     for (let k = 0; k < L; k++) { let i; do { i = (r() * N) | 0; } while (used.has(i)); used.add(i); letterIdx[i] = k; }
-    buildPath();
+    // the blob writes the captions as one steady stream of letters while it travels left → right
+    const r2 = rnd(11), nS2 = slots.length;
+    emitAt = slots.map((sl, k) => 0.02 + (k / Math.max(1, nS2 - 1)) * 0.74 + (r2() - 0.5) * 0.006);
   }
 
   /* ---------- pointer + smoke ---------- */
@@ -559,12 +564,17 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 
     const morph = sp(p, ...T.morph);
     const mv = ease(sp(p, ...T.move)), sh = ease(sp(p, ...T.shift));
-    const cx = lerp(lerp(c0.x, c1.x, mv), c2.x, sh);
-    const cy = lerp(lerp(c0.y, c1.y, mv), c2.y, sh) - Math.sin(mv * Math.PI) * H * 0.03 - Math.sin(sh * Math.PI) * H * 0.02;
+    let cx = lerp(lerp(c0.x, c1.x, mv), c2.x, sh);
+    let cy = lerp(lerp(c0.y, c1.y, mv), c2.y, sh) - Math.sin(mv * Math.PI) * H * 0.03 - Math.sin(sh * Math.PI) * H * 0.04;
     const pL = sp(p, ...T.letters);
+    if (pL > 0) {
+      const u = ease(clamp(pL / DRAW));
+      cx = lerp(c2.x, c3.x, u);
+      cy = lerp(c2.y, c3.y, u) + Math.sin(u * Math.PI * 2) * H * 0.035;
+    }
     const pE = sp(p, ...T.evap);
     const domFoot = sp(p, ...T.footIn);
-    const L = slots.length, G = 2.6;
+    const L = slots.length;
     const motion = reduce ? 0 : 1;
     letters.length = 0;
 
@@ -585,15 +595,6 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 
     // envelope of the irregular round blob
     const env = a => 1 + 0.13 * Math.sin(3 * a + 0.7 * t) + 0.08 * Math.sin(5 * a - 1.1 * t + 1.3) + 0.06 * Math.sin(2 * a + 0.45 * t + 2);
-
-    // faint guide of the letter track
-    if (path && pL > 0 && pL < 1) {
-      const a = Math.sin(pL * Math.PI) * 0.22;
-      ctx.strokeStyle = `rgba(255,170,100,${a})`; ctx.lineWidth = 1; ctx.setLineDash([2, 7]);
-      ctx.beginPath(); ctx.moveTo(path.xs[0], path.ys[0]);
-      for (let i = 1; i <= path.n; i++) ctx.lineTo(path.xs[i], path.ys[i]);
-      ctx.stroke(); ctx.setLineDash([]);
-    }
 
     let count = 0;
     for (let i = 0; i < N; i++) {
@@ -644,24 +645,28 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       let alpha = 1, s = size[i] * (1 + 0.15 * mi), rot = rot0[i] + spin[i] * 0.3;
 
       const li = letterIdx[i];
-      if (li >= 0 && pL > 0 && path) {
+      if (li >= 0 && pL > 0) {
         const sl = slots[li];
-        const st = clamp(pL * (1 + G) - (li / L) * G);
-        if (st > 0) {
-          let lx, ly, ang2 = 0, m = 1, white = 0, kk = BIG;
-          if (st < 0.14) {
-            const q = ease(st / 0.14); m = q; kk = lerp(0.4, BIG, q);
-            lx = lerp(x, path.S.x, q); ly = lerp(y, path.S.y, q);
-            ang2 = pathAt(0)[2] * q;
-          } else if (st < 0.8) {
-            const [px, py, pa] = pathAt((st - 0.14) / 0.66); lx = px; ly = py; ang2 = pa;
+        const pr = clamp((pL - emitAt[li]) / FLY);
+        if (pr > 0) {
+          const tipX = cx - R * 0.55, tipY = cy + R * 0.55;
+          let lx, ly, ang2 = 0, q = 0;
+          if (pr < 0.16) {
+            const g = ease(pr / 0.16);
+            lx = lerp(x, tipX, g); ly = lerp(y, tipY, g);
           } else {
-            const h = ease((st - 0.8) / 0.2);
-            lx = lerp(path.E.x, sl.x, h); ly = lerp(path.E.y, sl.y, h) - Math.sin(h * Math.PI) * 26;
-            ang2 = lerp(pathAt(1)[2], 0, h); white = h; kk = lerp(BIG, 1, h);
+            q = ease((pr - 0.16) / 0.84);
+            const u1 = 1 - q;
+            const kx = Math.min(tipX, sl.x) + (tipX - sl.x) * 0.15 - R * 0.25, ky = Math.max(tipY, sl.y) + H * 0.04;
+            lx = u1 * u1 * tipX + 2 * u1 * q * kx + q * q * sl.x;
+            ly = u1 * u1 * tipY + 2 * u1 * q * ky + q * q * sl.y;
+            const dxq = 2 * u1 * (kx - tipX) + 2 * q * (sl.x - kx), dyq = 2 * u1 * (ky - tipY) + 2 * q * (sl.y - ky);
+            ang2 = Math.atan2(dyq, dxq);
+            if (ang2 > Math.PI / 2) ang2 -= Math.PI; else if (ang2 < -Math.PI / 2) ang2 += Math.PI;
+            ang2 *= 0.6 * (1 - q);
           }
-          if (ang2 > Math.PI / 2) ang2 -= Math.PI; else if (ang2 < -Math.PI / 2) ang2 += Math.PI;
-          letters.push({ x: lx, y: ly, a: ang2, k: kk, ch: sl.ch, font: sl.font, m, white, alpha: 1 - domFoot, glow: 1 - white });
+          const m = clamp(pr / 0.1), white = clamp((pr - 0.5) / 0.5);
+          letters.push({ x: lx, y: ly, a: ang2, k: lerp(BIG, 1, q), ch: sl.ch, font: sl.font, m, white, alpha: 1 - domFoot, glow: 1 - white });
           x = lx; y = ly; alpha = 1 - m; lt = Math.max(lt, m);
         }
       } else if (li < 0 && pE > 0) {
