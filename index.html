@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Notely records your meetings, generates accurate summaries, and turns agreements into specific tasks. Automatically.">
+<meta name="theme-color" content="#0a0019">
+<title>Notely</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Layout: one fixed full-screen stage driven by a tall scroll track.
+   Header pinned to the top, captions and headline pinned to the bottom, side copy centred vertically. */
+:root{
+  --ink:#0a0019;
+  --paper:#ffffff;
+  --ember:#e65100;
+  --ember-hi:#ff8a3d;
+  --moss:#a9c2a4;
+  --font:"Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pad:clamp(16px, 2.6vw, 50px);
+  color-scheme:dark;
+}
+html,body{background:var(--ink);color:var(--paper)}
+body{margin:0;font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.track{height:820vh}
+
+.stage{position:fixed;inset:0;overflow:hidden;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));}
+.bg{position:absolute;inset:-4%;background:var(--ink) url("assets/bg.jpg") center/cover no-repeat;will-change:transform}
+.glow{position:absolute;left:-24%;top:24%;width:52%;height:34%;border-radius:50%;
+  background:radial-gradient(closest-side, color-mix(in srgb, var(--moss) 55%, transparent), transparent);
+  transform:rotate(10deg);filter:blur(30px);opacity:.75;pointer-events:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#smoke{mix-blend-mode:screen}
+
+.ui{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;pointer-events:none;
+  padding-left:max(var(--pad), env(safe-area-inset-left, 0px));
+  padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
+  padding-top:calc(var(--pad) + env(safe-area-inset-top, 0px));
+  padding-bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));}
+
+/* header — pinned to the top */
+.head{display:grid;grid-template-columns:calc(26.56vw - var(--pad)) 1fr auto;align-items:center;min-width:0}
+.head a,.head button{pointer-events:auto}
+.logo{font-weight:700;font-size:clamp(34px, 3.9vw, 75px);letter-spacing:-.06em;line-height:1;margin:0;transform:translateY(-.08em)}
+.nav{display:flex;gap:clamp(10px, .84vw, 16px);font-size:clamp(14px, .94vw, 18px);letter-spacing:-.03em}
+.nav a{color:var(--paper);text-decoration:none;opacity:.92}
+.nav a:hover{opacity:1;text-decoration:underline;text-underline-offset:4px}
+.cta{font:500 clamp(16px, 1.56vw, 30px)/1.2 var(--font);letter-spacing:-.03em;color:var(--paper);
+  background:var(--ember);border:0;border-radius:999px;padding:.27em 1.07em;cursor:pointer;transition:background .2s}
+.cta:hover{background:var(--ember-hi)}
+a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
+
+/* stacked scenes share grid cells */
+.mid{display:grid;align-items:center;min-height:0}
+.bottom{display:grid;align-items:end;min-width:0}
+.bottom > *{grid-area:1/1}
+
+.big{font-weight:700;line-height:1;letter-spacing:-.08em;margin:0;text-wrap:balance}
+.s2{font-size:clamp(28px, 3.34vw, 64px);width:min(48vw, 100%);justify-self:center;text-align:center;margin-bottom:.1em}
+/* side copy: centred on the screen height, independent of the header */
+.s3{position:absolute;top:50%;left:max(var(--pad), env(safe-area-inset-left, 0px));transform:translateY(-50%);
+  font-size:clamp(28px, 3.34vw, 64px);width:min(43.2vw, calc(100% - 2 * var(--pad)))}
+.w{display:inline-block;white-space:nowrap}
+.ch{display:inline-block;position:relative;visibility:hidden}
+.ch.on{visibility:visible}
+
+/* typing caret */
+.ch.cur::after,.ch.cur0::after{content:"";position:absolute;visibility:visible;top:.1em;bottom:.02em;width:.07em;
+  background:var(--ember-hi);border-radius:1px;animation:blink 1s steps(1) infinite}
+.ch.cur::after{right:-.1em}
+.ch.cur0::after{left:-.02em}
+.typing .ch.cur::after,.typing .ch.cur0::after{animation:none}
+@keyframes blink{50%{opacity:0}}
+
+.final{display:grid;gap:clamp(20px, 2.9vw, 56px)}
+.headline{font-size:min(11.35vw, 24vh);white-space:nowrap;letter-spacing:-.08em;line-height:.86}
+.foot{display:grid;grid-template-columns:calc(25vw + 30px - var(--pad)) minmax(0, 1fr);align-items:start}
+.foot p{margin:0;letter-spacing:-.03em;line-height:1.2}
+.foot .ch{visibility:visible}
+.f1{font-size:clamp(13px, .94vw, 18px)}
+.f2{font-size:clamp(15px, 1.25vw, 24px);max-width:15.6em}
+
+.hint{position:absolute;left:50%;bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);
+  display:grid;justify-items:center;gap:10px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.85;pointer-events:none}
+.hint i{display:block;width:1px;height:42px;background:linear-gradient(var(--paper), transparent);
+  transform-origin:top;animation:drip 1.8s ease-in-out infinite}
+@keyframes drip{0%{transform:scaleY(0)}50%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
+
+@media (max-width:760px){
+  .head{grid-template-columns:1fr auto}
+  .nav{display:none}
+  .headline{white-space:normal;font-size:clamp(40px, 13vw, 96px);line-height:.92}
+  .foot{grid-template-columns:1fr;gap:14px}
+  .s3{width:calc(100% - 2 * var(--pad))}
+  .s2{width:100%}
+}
+@media (prefers-reduced-motion:reduce){.hint i,.ch.cur::after,.ch.cur0::after{animation:none}}
+</style>
+</head>
+<body>
+<div class="track" aria-hidden="true"></div>
+
+<div class="stage" id="stage">
+  <div class="bg" id="bg"></div>
+  <div class="glow"></div>
+  <canvas id="gl"></canvas>
+  <canvas id="fx"></canvas>
+  <canvas id="smoke"></canvas>
+
+  <div class="ui">
+    <header class="head">
+      <p class="logo">notely.</p>
+      <nav class="nav" aria-label="Main">
+        <a href="#">About us</a><a href="#">Results</a><a href="#">Answer</a><a href="#">Contact us</a>
+      </nav>
+      <button class="cta" type="button">Free Trial</button>
+    </header>
+
+    <div class="mid">
+      <h2 class="big s3" id="s3">Get a summary of your calls and completed tasks with minimal effort</h2>
+    </div>
+
+    <div class="bottom">
+      <h2 class="big s2" id="s2">notely is an AI app for managers and programmers</h2>
+      <div class="final">
+        <h1 class="big headline" id="headline">Let the AI take notes</h1>
+        <div class="foot" id="foot">
+          <p class="f1">No unnecessary red tape,<br>5 seconds and you’re all set</p>
+          <p class="f2">NOTELY records your meetings, generates accurate summaries, and turns agreements into specific tasks. Automatically</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint" id="hint"><span>Scroll</span><i></i></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const sp = (p, a, b) => clamp((p - a) / (b - a));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Scroll timeline (0 → 1)
+  const T = {
+    morph: [0.07, 0.30],   // sequins: n → blob
+    t2in: [0.16, 0.28], t2out: [0.33, 0.38],
+    move: [0.34, 0.52],    // blob drifts right
+    t3in: [0.41, 0.54], t3out: [0.57, 0.62],
+    letters: [0.60, 0.85], // sequins → letters → track → captions
+    footIn: [0.835, 0.865],
+    evap: [0.82, 0.98],    // blob evaporates as letters, headline is typed
+    head: [0.85, 0.97],
+    hint: [0, 0.035]
+  };
+
+  const stage = document.getElementById("stage");
+  const glc = document.getElementById("gl");
+  const cv = document.getElementById("fx");
+  const ctx = cv.getContext("2d");
+  const sc = document.getElementById("smoke");
+  const sctx = sc.getContext("2d");
+  const bg = document.getElementById("bg");
+  const hint = document.getElementById("hint");
+  const foot = document.getElementById("foot");
+
+  /* ---------- text splitting ---------- */
+  function split(el) {
+    const out = [];
+    const walk = node => {
+      [...node.childNodes].forEach(n => {
+        if (n.nodeType === 3) {
+          const frag = document.createDocumentFragment();
+          n.textContent.split(/(\s+)/).forEach(part => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(" ")); return; }
+            const w = document.createElement("span"); w.className = "w";
+            [...part].forEach(c => { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; w.appendChild(s); out.push(s); });
+            frag.appendChild(w);
+          });
+          n.replaceWith(frag);
+        } else if (n.nodeType === 1 && n.tagName !== "BR") walk(n);
+      });
+    };
+    walk(el);
+    return out;
+  }
+
+  // typewriter: characters appear one by one; leaving the scene deletes them backwards
+  function typer(el) {
+    const chars = split(el);
+    return { el, chars, shown: -1, caret: -2, typing: null };
+  }
+  function type(tp, inP, outP, keepCaret) {
+    const n = tp.chars.length;
+    const count = Math.max(0, Math.min(Math.round(n * inP), Math.round(n * (1 - outP))));
+    if (count !== tp.shown) {
+      tp.chars.forEach((c, i) => c.classList.toggle("on", i < count));
+      tp.shown = count;
+    }
+    const active = inP > 0 && outP < 1 && (keepCaret || count < n || outP > 0 || inP < 1);
+    const caret = active ? (count === 0 ? -1 : count - 1) : -2;
+    if (caret !== tp.caret) {
+      if (tp.caret >= 0) tp.chars[tp.caret].classList.remove("cur");
+      if (tp.caret === -1) tp.chars[0].classList.remove("cur0");
+      if (caret >= 0) tp.chars[caret].classList.add("cur");
+      if (caret === -1) tp.chars[0].classList.add("cur0");
+      tp.caret = caret;
+    }
+    const isTyping = inP > 0 && inP < 1 || outP > 0 && outP < 1;
+    if (isTyping !== tp.typing) { tp.el.classList.toggle("typing", isTyping); tp.typing = isTyping; }
+  }
+
+  const tp2 = typer(document.getElementById("s2"));
+  const tp3 = typer(document.getElementById("s3"));
+  const tpH = typer(document.getElementById("headline"));
+  const footChars = [...foot.querySelectorAll("p")].flatMap(p => split(p));
+
+  /* ---------- WebGL sequins ---------- */
+  let gl = null, prog, buf, uRes, uDpr;
+  const STRIDE = 7;
+  try {
+    gl = glc.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false });
+  } catch (e) { gl = null; }
+  if (gl) {
+    const vs = `
+      attribute vec2 aPos; attribute float aSize; attribute float aRot; attribute float aTilt; attribute float aLight; attribute float aAlpha;
+      uniform vec2 uRes; uniform float uDpr;
+      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha;
+      void main(){
+        vec2 c = aPos / uRes * 2.0 - 1.0;
+        gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
+        gl_PointSize = aSize * uDpr;
+        vRot = aRot; vTilt = aTilt; vLight = aLight; vAlpha = aAlpha;
+      }`;
+    const fs = `
+      precision mediump float;
+      varying float vRot; varying float vTilt; varying float vLight; varying float vAlpha;
+      void main(){
+        vec2 p = gl_PointCoord * 2.0 - 1.0;
+        float c = cos(vRot), s = sin(vRot);
+        p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+        float t = max(abs(vTilt), 0.38);
+        vec2 q = vec2(p.x, p.y / t);
+        float r = length(q);
+        if (r > 1.0) discard;
+        float edge = smoothstep(1.0, 0.72, r);
+        vec3 dark = vec3(0.46, 0.13, 0.0);
+        vec3 base = vec3(0.902, 0.318, 0.0);   /* button colour #e65100 */
+        vec3 col = mix(dark, base, 0.45 + 0.55 * t);
+        col = mix(col, vec3(0.97, 0.40, 0.04), step(0.0, vTilt) * 0.22);
+        float L = clamp(vLight, 0.0, 1.0);
+        col = mix(col, vec3(1.0, 0.74, 0.50), L * 0.78);
+        float spec = pow(max(0.0, 1.0 - length(q - vec2(-0.32, -0.38)) * 1.15), 3.0);
+        col += vec3(1.0, 0.9, 0.78) * spec * (0.10 + 0.75 * L) * t;
+        col *= 0.9 + 0.1 * (1.0 - r);
+        float a = edge * vAlpha;
+        gl_FragColor = vec4(col * a, a);
+      }`;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) gl = null;
+    else {
+      gl.useProgram(prog);
+      buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const names = ["aPos", "aSize", "aRot", "aTilt", "aLight", "aAlpha"], sizes = [2, 1, 1, 1, 1, 1];
+      let off = 0;
+      names.forEach((nm, k) => {
+        const loc = gl.getAttribLocation(prog, nm);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, sizes[k], gl.FLOAT, false, STRIDE * 4, off * 4);
+        off += sizes[k];
+      });
+      uRes = gl.getUniformLocation(prog, "uRes"); uDpr = gl.getUniformLocation(prog, "uDpr");
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.clearColor(0, 0, 0, 0);
+    }
+  }
+
+  /* ---------- smoke sprites ---------- */
+  function rnd(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+  const smokeSprites = [1, 2, 3, 4].map(seed => {
+    const r = rnd(seed * 97), c = document.createElement("canvas"); c.width = c.height = 160;
+    const g = c.getContext("2d");
+    for (let k = 0; k < 26; k++) {
+      const a = r() * Math.PI * 2, d = Math.pow(r(), 0.7) * 38, x = 80 + Math.cos(a) * d, y = 80 + Math.sin(a) * d, rad = 8 + r() * 26;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      gr.addColorStop(0, "rgba(255,255,255,0.24)"); gr.addColorStop(0.6, "rgba(255,255,255,0.07)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    }
+    const o = document.createElement("canvas"); o.width = o.height = 160;
+    const og = o.getContext("2d"); og.filter = "blur(5px)"; og.drawImage(c, 0, 0);
+    return o;
+  });
+
+  /* ---------- state ---------- */
+  let W = 0, H = 0, DPR = 1, N = 0;
+  let P = 0, target = 0, last = performance.now();
+  let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, swX, swY, evR, evDX, evRise, evLetter, evCh, evRot, letterIdx, twR;
+  let dX, dY, vX, vY, light, spin, data;
+  let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, R = 100;
+  let slots = [], path = null;
+  const evapChars = "LettheAItakenotesnotely";
+  const BIG = 1.75;
+  const EVF = '700 18px "Space Grotesk", sans-serif';
+
+  // pointer
+  const ptr = { x: -9999, y: -9999, mx: 0, my: 0, lastT: 0, emitX: 0, emitY: 0, vx: 0, vy: 0, inside: false };
+  let stir = 0;
+  const puffs = [];
+
+  function sampleN() {
+    const hN = Math.min(H * 0.5, W * 0.62);
+    const probe = document.createElement("canvas").getContext("2d");
+    probe.font = '700 100px "Space Grotesk", sans-serif';
+    const m = probe.measureText("n");
+    const gh = (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) || 54;
+    const fs = 100 * hN / gh;
+    probe.font = `700 ${fs}px "Space Grotesk", sans-serif`;
+    const mm = probe.measureText("n");
+    const gw = Math.ceil(mm.actualBoundingBoxLeft + mm.actualBoundingBoxRight) || Math.ceil(fs * .55);
+    const ghh = Math.ceil(mm.actualBoundingBoxAscent + mm.actualBoundingBoxDescent) || Math.ceil(hN);
+    const oc = document.createElement("canvas"); oc.width = gw + 4; oc.height = ghh + 4;
+    const g = oc.getContext("2d"); g.font = probe.font; g.fillStyle = "#fff";
+    g.fillText("n", 2 + (mm.actualBoundingBoxLeft || 0), 2 + (mm.actualBoundingBoxAscent || ghh));
+    const px = g.getImageData(0, 0, oc.width, oc.height).data;
+    const step = Math.max(2, Math.round(hN / 130));
+    const pts = [];
+    for (let y = 0; y < oc.height; y += step) for (let x = 0; x < oc.width; x += step)
+      if (px[(y * oc.width + x) * 4 + 3] > 140) pts.push(x, y);
+    return { pts, ox: W * 0.5 - oc.width / 2, oy: H * 0.46 - oc.height / 2, step, hN };
+  }
+
+  function buildPath() {
+    if (!slots.length) { path = null; return; }
+    const narrow = W < 760;
+    const s0 = slots[0];
+    const S = { x: c1.x - R * (narrow ? 0.45 : 0.8), y: c1.y + R * 0.5 };
+    const E = { x: s0.x + 2, y: s0.y - Math.max(46, H * 0.07) };
+    const C1 = { x: S.x - W * (narrow ? 0.25 : 0.2), y: S.y + H * 0.04 };
+    const C2 = { x: E.x + W * (narrow ? 0.35 : 0.32), y: E.y - H * 0.24 };
+    const n = 240, xs = new Float32Array(n + 1), ys = new Float32Array(n + 1), len = new Float32Array(n + 1);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, u = 1 - t;
+      xs[i] = u * u * u * S.x + 3 * u * u * t * C1.x + 3 * u * t * t * C2.x + t * t * t * E.x;
+      ys[i] = u * u * u * S.y + 3 * u * u * t * C1.y + 3 * u * t * t * C2.y + t * t * t * E.y;
+      if (i) len[i] = len[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
+    }
+    path = { xs, ys, len, total: len[n], n, S, E };
+  }
+  function pathAt(u) {
+    const L = clamp(u) * path.total, { len, xs, ys, n } = path;
+    let lo = 0, hi = n;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (len[m] < L) lo = m; else hi = m; }
+    const f = (L - len[lo]) / ((len[hi] - len[lo]) || 1);
+    return [lerp(xs[lo], xs[hi], f), lerp(ys[lo], ys[hi], f), Math.atan2(ys[hi] - ys[lo], xs[hi] - xs[lo])];
+  }
+
+  function measureSlots() {
+    slots = [];
+    const sr = stage.getBoundingClientRect();
+    footChars.forEach(el => {
+      const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+      slots.push({ ch: el.textContent, x: r.left - sr.left, y: r.top - sr.top + r.height / 2,
+        font: `${cs.fontWeight} ${cs.fontSize} "Space Grotesk", sans-serif` });
+    });
+  }
+
+  function layout() {
+    W = stage.clientWidth; H = stage.clientHeight;
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    [glc, cv, sc].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
+    const narrow = W < 760;
+    R = narrow ? Math.min(W * 0.32, H * 0.2) : Math.min(W * 0.2, H * 0.3, 420);
+    c0 = { x: W * 0.5, y: H * (narrow ? 0.4 : 0.44) };
+    c1 = narrow ? { x: W * 0.62, y: H * 0.25 } : { x: W * 0.72, y: H * 0.47 };
+
+    const r = rnd(7);
+    N = narrow ? 1700 : 3400;
+    const nS = sampleN();
+    const A = n => new Float32Array(n);
+    nX = A(N); nY = A(N); bA = A(N); bR = A(N); delay = A(N); phase = A(N); flip0 = A(N); flipRate = A(N);
+    size = A(N); rot0 = A(N); swX = A(N); swY = A(N); evR = A(N); evDX = A(N); evRise = A(N); evRot = A(N); twR = A(N);
+    dX = A(N); dY = A(N); vX = A(N); vY = A(N); light = A(N); spin = A(N);
+    evLetter = new Uint8Array(N); evCh = new Array(N); letterIdx = new Int16Array(N).fill(-1);
+    data = new Float32Array(N * STRIDE);
+    const np = nS.pts.length / 2;
+    const maxEvapLetters = narrow ? 240 : 480; let evCount = 0;
+    const seqBase = Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
+    for (let i = 0; i < N; i++) {
+      const k = Math.floor(r() * np);
+      nX[i] = nS.ox + nS.pts[k * 2] + (r() - .5) * nS.step;
+      nY[i] = nS.oy + nS.pts[k * 2 + 1] + (r() - .5) * nS.step;
+      bA[i] = r() * Math.PI * 2; bR[i] = Math.pow(r(), 0.62);
+      delay[i] = r(); phase[i] = r() * Math.PI * 2;
+      flip0[i] = r() * Math.PI * 2; flipRate[i] = 0.3 + r() * 0.9; twR[i] = 0.4 + r() * 1.4;
+      size[i] = seqBase * (0.8 + r() * 0.5);
+      rot0[i] = r() * Math.PI;
+      const a = r() * Math.PI * 2, m = 0.4 + r() * 0.9; swX[i] = Math.cos(a) * m; swY[i] = Math.sin(a) * m;
+      evR[i] = r(); evDX[i] = (r() - .5) * 1.6; evRise[i] = 0.25 + r() * 0.4; evRot[i] = (r() - .5) * 1.6;
+      evCh[i] = evapChars[(r() * evapChars.length) | 0];
+      if (evCount < maxEvapLetters && r() < 0.25) { evLetter[i] = 1; evCount++; }
+    }
+    measureSlots();
+    const L = slots.length; const used = new Set();
+    for (let k = 0; k < L; k++) { let i; do { i = (r() * N) | 0; } while (used.has(i)); used.add(i); letterIdx[i] = k; }
+    buildPath();
+  }
+
+  /* ---------- pointer + smoke ---------- */
+  function onMove(e) {
+    const sr = stage.getBoundingClientRect();
+    const x = e.clientX - sr.left, y = e.clientY - sr.top, now = e.timeStamp || performance.now();
+    if (!ptr.inside) { ptr.x = ptr.emitX = x; ptr.y = ptr.emitY = y; ptr.lastT = now; ptr.inside = true; return; }
+    const dt = Math.max(1, now - ptr.lastT) / 1000;
+    const ivx = (x - ptr.x) / dt, ivy = (y - ptr.y) / dt;
+    const im = Math.hypot(ivx, ivy), cap = im > 2600 ? 2600 / im : 1;
+    ptr.vx = lerp(ptr.vx, ivx * cap, 0.5); ptr.vy = lerp(ptr.vy, ivy * cap, 0.5);
+    ptr.mx += x - ptr.x; ptr.my += y - ptr.y;
+    ptr.x = x; ptr.y = y; ptr.lastT = now;
+    if (reduce) return;
+    // drop smoke puffs along the stroke
+    let dx = x - ptr.emitX, dy = y - ptr.emitY, dist = Math.hypot(dx, dy);
+    const stepPx = 7;
+    while (dist >= stepPx) {
+      ptr.emitX += dx / dist * stepPx; ptr.emitY += dy / dist * stepPx;
+      emit(ptr.emitX, ptr.emitY, ptr.vx, ptr.vy);
+      dx = x - ptr.emitX; dy = y - ptr.emitY; dist = Math.hypot(dx, dy);
+    }
+  }
+  function emit(x, y, vx, vy) {
+    if (puffs.length > 420) puffs.shift();
+    const sp = Math.min(1, Math.hypot(vx, vy) / 2500);
+    puffs.push({ x, y, vx: vx * 0.42 + (Math.random() - .5) * 40, vy: vy * 0.42 + (Math.random() - .5) * 40,
+      age: 0, life: 1.6 + Math.random() * 1.4, s0: 18 + Math.random() * 14, s1: 90 + Math.random() * 90 + sp * 80,
+      rot: Math.random() * 6.28, vr: (Math.random() - .5) * 0.8, k: (Math.random() * 4) | 0, a: 0.07 + sp * 0.08 });
+  }
+  addEventListener("pointermove", onMove, { passive: true });
+  addEventListener("pointerdown", onMove, { passive: true });
+  document.addEventListener("pointerleave", () => { ptr.inside = false; });
+
+  function drawSmoke(dt) {
+    sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    sctx.clearRect(0, 0, W, H);
+    for (let i = puffs.length - 1; i >= 0; i--) {
+      const p = puffs[i];
+      p.age += dt;
+      if (p.age >= p.life) { puffs.splice(i, 1); continue; }
+      const damp = Math.exp(-dt * 2.3);
+      p.vx *= damp; p.vy *= damp; p.vy -= 8 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      const t = p.age / p.life;
+      const a = (t < 0.08 ? t / 0.08 : 1) * Math.pow(1 - t, 1.6) * p.a;
+      const s = lerp(p.s0, p.s1, easeOut(t));
+      sctx.globalAlpha = a;
+      sctx.save(); sctx.translate(p.x, p.y); sctx.rotate(p.rot);
+      sctx.drawImage(smokeSprites[p.k], -s, -s, s * 2, s * 2);
+      sctx.restore();
+    }
+    sctx.globalAlpha = 1;
+  }
+
+  /* ---------- render ---------- */
+  const letters = [];
+  function render(p, t, dt) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const morph = sp(p, ...T.morph);
+    const mv = ease(sp(p, ...T.move));
+    const cx = lerp(c0.x, c1.x, mv), cy = lerp(c0.y, c1.y, mv) - Math.sin(mv * Math.PI) * H * 0.03;
+    const pL = sp(p, ...T.letters);
+    const pE = sp(p, ...T.evap);
+    const domFoot = sp(p, ...T.footIn);
+    const L = slots.length, G = 2.6;
+    const motion = reduce ? 0 : 1;
+    letters.length = 0;
+
+    // pointer energy: short flicks barely stir, long sweeps spread the blob across the screen
+    const moved = Math.hypot(ptr.mx, ptr.my);
+    const speed = moved / Math.max(dt, 1e-3);
+    ptr.mx = ptr.my = 0;
+    const active = moved > 0.5 && motion;
+    if (active) stir = Math.min(1.6, stir + Math.min(speed, 3000) / 1000 * dt * 0.6);
+    stir *= Math.exp(-dt * (active ? 0.12 : 0.7));
+    const k = 38 / (1 + stir * 4);
+    const rad = Math.min(Math.min(W, H) * 0.32, 55 + stir * 120);
+    const damp = Math.exp(-dt * 2.8);
+    const maxD = Math.min(W, H) * 0.24;
+    const imp = Math.min(1, dt * 60);
+    const pvx = ptr.vx, pvy = ptr.vy;
+    if (!active) { ptr.vx *= Math.exp(-dt * 8); ptr.vy *= Math.exp(-dt * 8); }
+
+    // envelope of the irregular round blob
+    const env = a => 1 + 0.13 * Math.sin(3 * a + 0.7 * t) + 0.08 * Math.sin(5 * a - 1.1 * t + 1.3) + 0.06 * Math.sin(2 * a + 0.45 * t + 2);
+
+    // faint guide of the letter track
+    if (path && pL > 0 && pL < 1) {
+      const a = Math.sin(pL * Math.PI) * 0.22;
+      ctx.strokeStyle = `rgba(255,170,100,${a})`; ctx.lineWidth = 1; ctx.setLineDash([2, 7]);
+      ctx.beginPath(); ctx.moveTo(path.xs[0], path.ys[0]);
+      for (let i = 1; i <= path.n; i++) ctx.lineTo(path.xs[i], path.ys[i]);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    let count = 0;
+    for (let i = 0; i < N; i++) {
+      const ph = phase[i];
+      // "n": the whole letter breathes and ripples
+      const nx = nX[i] + (Math.sin(t * 0.9 + nY[i] * 0.012) * 5 + Math.sin(t * 1.7 + ph) * 1.2) * motion;
+      const ny = nY[i] + (Math.cos(t * 0.75 + nX[i] * 0.011) * 4 + Math.cos(t * 1.3 + ph) * 1.2) * motion;
+      // blob: irregular round shape, always turning, inner layers faster
+      const ang = bA[i] + t * (0.05 + 0.1 * (1 - bR[i])) * motion;
+      const rr = R * bR[i] * env(ang);
+      const bx = cx + Math.cos(ang) * rr * 1.1;
+      const by = cy + Math.sin(ang) * rr * 0.96 + Math.sin(t * 0.9 + ph) * 2 * motion;
+
+      const mi = ease(clamp((morph - delay[i] * 0.42) / 0.58));
+      const kx = (nx + bx) / 2 + swX[i] * R * 0.9, ky = (ny + by) / 2 + swY[i] * R * 0.9;
+      const u = 1 - mi;
+      let hx = u * u * nx + 2 * u * mi * kx + mi * mi * bx;
+      let hy = u * u * ny + 2 * u * mi * ky + mi * mi * by;
+
+      // pointer physics on top of the scripted position
+      let vx = vX[i], vy = vY[i];
+      if (active) {
+        const ex = hx + dX[i] - ptr.x, ey = hy + dY[i] - ptr.y, dd = Math.hypot(ex, ey);
+        if (dd < rad) {
+          let f = 1 - dd / rad; f *= f;
+          const inv = 1 / (dd + 1e-3);
+          vx += (ex * inv * 150 * (0.5 + stir) + pvx * 0.2 * (1 + stir * 0.6)) * f * imp;
+          vy += (ey * inv * 150 * (0.5 + stir) + pvy * 0.2 * (1 + stir * 0.6)) * f * imp;
+        }
+      }
+      vx = (vx - dX[i] * k * dt) * damp; vy = (vy - dY[i] * k * dt) * damp;
+      dX[i] += vx * dt; dY[i] += vy * dt;
+      const dm = Math.hypot(dX[i], dY[i]);
+      if (dm > maxD) { dX[i] *= maxD / dm; dY[i] *= maxD / dm; vx *= 0.5; vy *= 0.5; }
+      // keep every sequin inside the screen
+      const m = 12, sx = hx + dX[i], sy = hy + dY[i];
+      if (sx < m) { dX[i] = m - hx; vx = Math.abs(vx) * 0.3; } else if (sx > W - m) { dX[i] = W - m - hx; vx = -Math.abs(vx) * 0.3; }
+      if (sy < m) { dY[i] = m - hy; vy = Math.abs(vy) * 0.3; } else if (sy > H - m) { dY[i] = H - m - hy; vy = -Math.abs(vy) * 0.3; }
+      vX[i] = vx; vY[i] = vy;
+      const spd = Math.hypot(vx, vy);
+      spin[i] += spd * dt * 0.025;
+      light[i] = Math.max(clamp(spd / 320), light[i] * Math.exp(-dt * 1.4));
+
+      let x = hx + dX[i], y = hy + dY[i];
+      const tilt = Math.cos(flip0[i] + t * flipRate[i] * 0.35 * motion + spin[i]);
+      const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion;
+      let lt = Math.max(light[i], glint);
+      let alpha = 1, s = size[i] * (1 + 0.15 * mi), rot = rot0[i] + spin[i] * 0.3;
+
+      const li = letterIdx[i];
+      if (li >= 0 && pL > 0 && path) {
+        const sl = slots[li];
+        const st = clamp(pL * (1 + G) - (li / L) * G);
+        if (st > 0) {
+          let lx, ly, ang2 = 0, m = 1, white = 0, kk = BIG;
+          if (st < 0.14) {
+            const q = ease(st / 0.14); m = q; kk = lerp(0.4, BIG, q);
+            lx = lerp(x, path.S.x, q); ly = lerp(y, path.S.y, q);
+            ang2 = pathAt(0)[2] * q;
+          } else if (st < 0.8) {
+            const [px, py, pa] = pathAt((st - 0.14) / 0.66); lx = px; ly = py; ang2 = pa;
+          } else {
+            const h = ease((st - 0.8) / 0.2);
+            lx = lerp(path.E.x, sl.x, h); ly = lerp(path.E.y, sl.y, h) - Math.sin(h * Math.PI) * 26;
+            ang2 = lerp(pathAt(1)[2], 0, h); white = h; kk = lerp(BIG, 1, h);
+          }
+          if (ang2 > Math.PI / 2) ang2 -= Math.PI; else if (ang2 < -Math.PI / 2) ang2 += Math.PI;
+          letters.push({ x: lx, y: ly, a: ang2, k: kk, ch: sl.ch, font: sl.font, m, white, alpha: 1 - domFoot, glow: 1 - white });
+          x = lx; y = ly; alpha = 1 - m; lt = Math.max(lt, m);
+        }
+      } else if (li < 0 && pE > 0) {
+        const e = clamp(pE * 1.7 - evR[i] * 0.7);
+        if (e > 0) {
+          const q = easeOut(e);
+          x += evDX[i] * R * q + Math.sin(t * 1.4 + ph) * 10 * q * motion;
+          y -= q * H * evRise[i];
+          if (evLetter[i]) {
+            const la = (e < 0.12 ? e / 0.12 : 1) * Math.pow(1 - q, 0.8);
+            letters.push({ x, y, a: evRot[i] * q, k: lerp(0.5, 1.6, q), ch: evCh[i], font: EVF, m: 1, white: q * 0.7, alpha: la, evap: 1, glow: 1 - q });
+            alpha *= 1 - clamp(e / 0.12);
+          } else alpha *= Math.pow(1 - q, 1.6);
+          lt = Math.max(lt, q * 0.8);
+          s *= 1 - q * 0.5;
+        }
+      }
+      if (alpha <= 0.01) continue;
+      const o = count * STRIDE;
+      data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot; data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
+      count++;
+    }
+
+    if (gl) {
+      gl.viewport(0, 0, glc.width, glc.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(uRes, W, H); gl.uniform1f(uDpr, DPR);
+      gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * STRIDE), gl.DYNAMIC_DRAW);
+      gl.drawArrays(gl.POINTS, 0, count);
+    } else {
+      // simple fallback without WebGL
+      for (let j = 0; j < count; j++) {
+        const o = j * STRIDE, L2 = data[o + 5];
+        ctx.globalAlpha = data[o + 6];
+        ctx.fillStyle = `rgb(${lerp(230, 255, L2) | 0},${lerp(81, 190, L2) | 0},${lerp(0, 128, L2) | 0})`;
+        ctx.beginPath();
+        ctx.ellipse(data[o], data[o + 1], data[o + 2] / 2, Math.max(.24, Math.abs(data[o + 4])) * data[o + 2] / 2, data[o + 3], 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // glyphs
+    ctx.textBaseline = "middle";
+    for (const g of letters) {
+      const a = g.alpha * g.m;
+      if (a <= 0.01) continue;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.translate(g.x, g.y); ctx.rotate(g.a); ctx.scale(g.k, g.k);
+      ctx.font = g.font;
+      ctx.textAlign = g.evap ? "center" : "left";
+      const gg = Math.round(lerp(196, 255, g.white)), b = Math.round(lerp(140, 255, g.white));
+      if (g.glow > 0.05) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = `rgba(255,120,30,${a * g.glow * 0.55})`;
+        ctx.fillText(g.ch, 0.6, 0.6); ctx.fillText(g.ch, -0.6, -0.6);
+        ctx.globalCompositeOperation = "source-over";
+      }
+      ctx.fillStyle = `rgba(255,${gg},${b},${a})`;
+      ctx.fillText(g.ch, 0, 0);
+    }
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // DOM scenes: typed in, deleted out
+    type(tp2, sp(p, ...T.t2in), sp(p, ...T.t2out));
+    type(tp3, sp(p, ...T.t3in), sp(p, ...T.t3out));
+    type(tpH, sp(p, ...T.head), 0, true);
+    foot.style.opacity = domFoot;
+    hint.style.opacity = (1 - sp(p, ...T.hint)) * 0.85;
+    bg.style.transform = `scale(${1.05 - 0.05 * p}) translateX(${(p - 0.5) * -1.2}%)`;
+  }
+
+  function readScroll() {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    target = max > 0 ? clamp(scrollY / max) : 0;
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
+    readScroll();
+    P = reduce ? target : P + (target - P) * (1 - Math.exp(-dt * 7));
+    if (Math.abs(target - P) < 1e-4) P = target;
+    render(P, now / 1000, dt);
+    drawSmoke(dt);
+    requestAnimationFrame(frame);
+  }
+
+  let rt;
+  addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(layout, 120); });
+
+  const fontsReady = Promise.race([
+    Promise.all([document.fonts.load('700 100px "Space Grotesk"'), document.fonts.load('400 20px "Space Grotesk"')]),
+    new Promise(r => setTimeout(r, 2500))
+  ]);
+  fontsReady.then(() => document.fonts.ready).then(() => {
+    layout(); readScroll(); P = target;
+    requestAnimationFrame(t => { last = t; frame(t); });
+  });
+})();
+</script>
+</body>
+</html>
