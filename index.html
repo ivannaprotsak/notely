@@ -10,66 +10,60 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
 <style>
-/* Layout: one fixed full-screen stage driven by a tall scroll track.
-   Header pinned to the top, captions and headline pinned to the bottom, side copy centred vertically. */
+/* Layout: one fixed full-screen stage. A ~3 s preloader turns the "n" into a cloud of letters,
+   then the header and copy are typed in. Scrolling pulls the cloud closer into a ring that opens onto block 2. */
 :root{
-  --ink:#050206;
+  --ink:#0a0019;
   --paper:#ffffff;
   --ember:#e65100;
   --ember-hi:#ff8a3d;
-  --moss:#a9c2a4;
   --font:"Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --pad:clamp(16px, 2.6vw, 50px);
   color-scheme:dark;
 }
 html,body{background:var(--ink);color:var(--paper)}
 body{margin:0;font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-.track{height:1000vh}
+html.loading,html.loading body{overflow:hidden}
+.track{height:260vh}
 
-.stage{position:fixed;inset:0;overflow:hidden;
-  padding-left:max(16px, env(safe-area-inset-left, 0px));
-  padding-right:max(16px, env(safe-area-inset-right, 0px));}
-.bgimg{position:absolute;inset:-5%;background:#050206 url("assets/bg2.jpg") center/cover no-repeat;will-change:transform}
-.bg{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:screen}
+.stage{position:fixed;inset:0;overflow:hidden;background:var(--ink)}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-#smoke{mix-blend-mode:screen}
+#gl{z-index:1}
+#gl.front{z-index:5}
+#smoke{z-index:6;mix-blend-mode:screen}
 
-.ui{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;pointer-events:none;
+/* ---------- shared page frame ---------- */
+.frame{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;
   padding-left:max(var(--pad), env(safe-area-inset-left, 0px));
   padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
   padding-top:calc(var(--pad) + env(safe-area-inset-top, 0px));
-  padding-bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));}
-
-/* header — pinned to the top */
+  padding-bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px))}
 .head{display:grid;grid-template-columns:calc(26.56vw - var(--pad)) 1fr auto;align-items:center;min-width:0}
-.head a,.head button{pointer-events:auto}
 .logo{font-weight:700;font-size:clamp(34px, 3.9vw, 75px);letter-spacing:-.06em;line-height:1;margin:0;transform:translateY(-.08em)}
 .nav{display:flex;gap:clamp(10px, .84vw, 16px);font-size:clamp(14px, .94vw, 18px);letter-spacing:-.03em}
-.nav a{color:var(--paper);text-decoration:none;opacity:.92}
+.nav a{color:inherit;text-decoration:none;opacity:.92}
 .nav a:hover{opacity:1;text-decoration:underline;text-underline-offset:4px}
-.cta{font:500 clamp(16px, 1.56vw, 30px)/1.2 var(--font);letter-spacing:-.03em;color:var(--paper);
+.cta{font:500 clamp(16px, 1.56vw, 30px)/1.2 var(--font);letter-spacing:-.03em;color:#fff;
   background:var(--ember);border:0;border-radius:999px;padding:.27em 1.07em;cursor:pointer;transition:background .2s}
 .cta:hover{background:var(--ember-hi)}
-a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
+a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset:3px}
 
-/* stacked scenes share grid cells */
-.mid{display:grid;align-items:center;min-height:0}
-.bottom{display:grid;align-items:end;min-width:0}
-.bottom > *{grid-area:1/1}
+.big{font-weight:700;line-height:1;letter-spacing:-.08em;margin:0}
+.foot{display:grid;grid-template-columns:calc(26.56vw - var(--pad)) minmax(0, 1fr);align-items:start}
+.foot p{margin:0;letter-spacing:-.03em;line-height:1.2}
+.lead{font-size:clamp(15px, 1.25vw, 24px);max-width:15.5em}
+.small{font-size:clamp(13px, .94vw, 18px)}
 
-.big{font-weight:700;line-height:1;letter-spacing:-.08em;margin:0;text-wrap:balance}
-/* scene copy: heading + small line; both scenes sit on the screen's vertical centre */
-.scene{position:absolute;top:50%;--h:clamp(28px, 3.34vw, 64px);display:grid;gap:calc(var(--h) * 0.47)}
-.scene .big{font-size:var(--h)}
-.scene .sub{margin:0;font-size:clamp(14px, .94vw, 18px);line-height:1.2;letter-spacing:-.03em}
-.scene2{left:max(26.56vw, var(--pad));transform:translateY(calc(var(--h) * -0.58));width:min(44vw, calc(100% - 2 * var(--pad)))}
-.scene3{left:max(var(--pad), env(safe-area-inset-left, 0px));transform:translateY(-50%);width:min(43.2vw, calc(100% - 2 * var(--pad)))}
-.scene3 .sub{margin-left:calc(26.56vw - var(--pad));width:max(200px, 14.5vw)}
+/* ---------- block 1 ---------- */
+.b1{z-index:3;pointer-events:none}
+.b1 .head{opacity:0;transform:translateY(-14px);transition:opacity .7s ease, transform .7s ease}
+.b1.ready .head{opacity:1;transform:none}
+.b1 .head a,.b1 .head button{pointer-events:auto}
+.b1 .bottom{grid-row:3;display:grid;gap:clamp(20px, 2.9vw, 56px)}
+.headline{font-size:min(11.4vw, 24vh);white-space:nowrap;line-height:.86}
 .w{display:inline-block;white-space:nowrap}
 .ch{display:inline-block;position:relative;visibility:hidden}
 .ch.on{visibility:visible}
-
-/* typing caret */
 .ch.cur::after,.ch.cur0::after{content:"";position:absolute;visibility:visible;top:.1em;bottom:.02em;width:.07em;
   background:var(--ember-hi);border-radius:1px;animation:blink 1s steps(1) infinite}
 .ch.cur::after{right:-.1em}
@@ -77,44 +71,82 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
 .typing .ch.cur::after,.typing .ch.cur0::after{animation:none}
 @keyframes blink{50%{opacity:0}}
 
-.final{display:grid;gap:clamp(20px, 2.9vw, 56px)}
-.headline{font-size:min(11.35vw, 24vh);white-space:nowrap;letter-spacing:-.08em;line-height:.86}
-.foot{display:grid;grid-template-columns:calc(25vw + 30px - var(--pad)) minmax(0, 1fr);align-items:start}
-.foot p{margin:0;letter-spacing:-.03em;line-height:1.2}
-.foot .ch{visibility:visible}
-.f1{font-size:clamp(13px, .94vw, 18px)}
-.f2{font-size:clamp(15px, 1.25vw, 24px);max-width:15.6em}
+/* ---------- preloader ---------- */
+.loader{position:absolute;z-index:7;left:max(var(--pad), env(safe-area-inset-left, 0px));right:max(var(--pad), env(safe-area-inset-right, 0px));
+  bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));transition:opacity .6s ease, transform .6s ease}
+.loader.done{opacity:0;transform:translateY(10px)}
+.loader .bar{position:relative;height:2px;background:color-mix(in srgb, var(--paper) 16%, transparent);border-radius:2px}
+.loader .bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--ember);border-radius:2px;box-shadow:0 0 12px var(--ember)}
+.loader .pct{position:absolute;bottom:14px;left:0;transform:translateX(-50%);font:500 clamp(16px, 1.25vw, 24px)/1 var(--font);
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-.hint{position:absolute;left:50%;bottom:calc(var(--pad) + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);
-  display:flex;align-items:center;gap:8px;padding:.27em 1.07em;border:1px solid var(--paper);border-radius:999px;background:transparent;
-  font:500 clamp(18px, 1.56vw, 30px)/1.2 var(--font);letter-spacing:-.03em;color:var(--paper);cursor:pointer;transition:background .2s, opacity .3s}
-.hint:hover{background:color-mix(in srgb, var(--paper) 12%, transparent)}
-.hint:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
-.hint svg{width:.8em;height:.8em;flex:none;animation:nudge 1.8s ease-in-out infinite}
-@keyframes nudge{0%,100%{transform:translateY(-1px)}50%{transform:translateY(3px)}}
+/* ---------- block 2 "How it works", revealed inside the ring ---------- */
+.b2{position:absolute;inset:0;z-index:4;background:#120208;visibility:hidden;overflow:hidden;
+  --line:color-mix(in srgb, var(--paper) 14%, transparent);--muted:color-mix(in srgb, var(--paper) 62%, transparent)}
+.b2.on{visibility:visible}
+.b2 .glow{position:absolute;inset:-10%;pointer-events:none;filter:blur(40px);
+  background:
+    radial-gradient(40vw 34vw at 74% 44%, rgba(230,81,0,.5), transparent 70%),
+    radial-gradient(30vw 26vw at 14% 96%, rgba(255,120,40,.22), transparent 70%);
+  animation:drift 18s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translate(-1.5%, -1%) rotate(-2deg)}to{transform:translate(1.5%, 1%) rotate(2deg)}}
+.b2 .head a,.b2 .head button{pointer-events:auto}
+.b2 .main{display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 34vw);gap:4vw;align-items:center;min-height:0}
+.b2 .main h2{font-size:clamp(30px, 3.34vw, 64px);max-width:13em;text-wrap:balance}
+/* example summary card */
+.card{justify-self:end;width:min(34vw, 560px);padding:clamp(18px, 1.6vw, 30px);border-radius:22px;
+  background:color-mix(in srgb, #1d0a0c 72%, transparent);border:1px solid var(--line);backdrop-filter:blur(14px);
+  display:grid;gap:clamp(12px, 1.1vw, 20px);font-size:clamp(13px, .94vw, 17px);line-height:1.35;letter-spacing:-.01em}
+.card .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card .meet{font-weight:700;font-size:1.25em;letter-spacing:-.03em}
+.card .meta{color:var(--muted);font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:.45em;padding:.3em .75em;border-radius:999px;font-size:.82em;white-space:nowrap;
+  background:color-mix(in srgb, var(--ember) 18%, transparent);color:var(--ember-hi)}
+.chip i{width:.5em;height:.5em;border-radius:50%;background:var(--ember-hi)}
+.card .label{font-size:.75em;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.card .sum{margin:0}
+.tasks{list-style:none;margin:0;padding:0;display:grid;border-top:1px solid var(--line)}
+.tasks li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.8em;padding:.75em 0;border-bottom:1px solid var(--line);
+  opacity:0;transform:translateY(8px);transition:opacity .5s ease, transform .5s ease}
+.tasks .box{width:1.15em;height:1.15em;border-radius:6px;border:1.5px solid color-mix(in srgb, var(--paper) 45%, transparent);
+  display:grid;place-items:center;transition:background .3s ease, border-color .3s ease}
+.tasks .box svg{width:.75em;height:.75em;opacity:0;transition:opacity .3s ease}
+.tasks .who{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.b2.live .tasks li{opacity:1;transform:none}
+.b2.live .tasks li:nth-child(2){transition-delay:.15s}
+.b2.live .tasks li:nth-child(3){transition-delay:.3s}
+.b2.live .tasks li.done .box{background:var(--ember);border-color:var(--ember);transition-delay:1s}
+.b2.live .tasks li.done .box svg{opacity:1;transition-delay:1s}
+.card .synced{color:var(--muted);font-size:.85em}
+/* three steps, on the page's column lines */
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:calc(26.56vw - var(--pad)) calc(26.56vw - var(--pad)) 1fr;
+  border-top:1px solid var(--line);padding-top:clamp(14px, 1.3vw, 24px)}
+.steps li{display:grid;gap:.4em;padding-right:2vw;font-size:clamp(13px, .94vw, 18px);line-height:1.25;letter-spacing:-.02em}
+.steps .n{color:var(--ember-hi);font-variant-numeric:tabular-nums;font-size:.85em}
+.steps b{font-size:1.2em;letter-spacing:-.03em}
+.steps span:last-child{color:var(--muted);max-width:22em}
 
 @media (max-width:760px){
   .head{grid-template-columns:1fr auto}
   .nav{display:none}
-  .headline{white-space:normal;font-size:clamp(40px, 13vw, 96px);line-height:.92}
+  .headline{white-space:normal;font-size:clamp(48px, 15vw, 110px);line-height:.9}
   .foot{grid-template-columns:1fr;gap:14px}
-  .scene2,.scene3{left:var(--pad);width:calc(100% - 2 * var(--pad))}
-  .scene3 .sub{margin-left:0;width:auto;max-width:22em}
+  .b2 .main{grid-template-columns:1fr;gap:20px;align-content:center}
+  .card{justify-self:stretch;width:auto;font-size:13px}
+  .card .sum{display:none}
+  .steps{grid-template-columns:1fr;gap:6px}
+  .steps span:last-child{display:none}
 }
-@media (prefers-reduced-motion:reduce){.hint svg,.ch.cur::after,.ch.cur0::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.ch.cur::after,.ch.cur0::after,.b2 .glow{animation:none}}
 </style>
 </head>
 <body>
 <div class="track" aria-hidden="true"></div>
 
 <div class="stage" id="stage">
-  <div class="bgimg" id="bgimg"></div>
-  <canvas id="bgc" class="bg"></canvas>
   <canvas id="gl"></canvas>
-  <canvas id="fx"></canvas>
-  <canvas id="smoke"></canvas>
 
-  <div class="ui">
+  <div class="frame b1" id="b1">
     <header class="head">
       <p class="logo">notely.</p>
       <nav class="nav" aria-label="Main">
@@ -122,33 +154,60 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       </nav>
       <button class="cta" type="button">Free Trial</button>
     </header>
-
-    <div class="mid">
-      <div class="scene scene2">
-        <h2 class="big" id="s2">notely. is an AI app for managers and programmers</h2>
-        <p class="sub" id="s2sub">who make 5 or more calls a day</p>
-      </div>
-      <div class="scene scene3">
-        <h2 class="big" id="s3">Get a summary of your calls and completed tasks with minimal effort</h2>
-        <p class="sub" id="s3sub">NOTELY records your meetings and automatically creates specific tasks</p>
-      </div>
-    </div>
-
+    <div></div>
     <div class="bottom">
-      <div class="final">
-        <h1 class="big headline" id="headline">Let the AI take notes</h1>
-        <div class="foot" id="foot">
-          <p class="f1">No unnecessary red tape,<br>5 seconds and you’re all set</p>
-          <p class="f2">NOTELY records your meetings, generates accurate summaries, and turns agreements into specific tasks. Automatically</p>
-        </div>
+      <h1 class="big headline" id="headline">Let the AI take notes</h1>
+      <div class="foot">
+        <p class="lead" id="lead">NOTELY records your meetings, generates accurate summaries, and turns agreements into specific tasks. Automatically</p>
+        <p class="small" id="small">No unnecessary red tape,<br>5 seconds and you’re all set</p>
       </div>
     </div>
   </div>
 
-  <button class="hint" id="hint" type="button" aria-label="Scroll down">
-    <span>Scroll</span>
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20V4M19 13L12 20L5 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
+  <section class="b2" id="b2" aria-label="Summaries">
+    <div class="glow"></div>
+    <div class="frame">
+      <header class="head">
+        <p class="logo">notely.</p>
+        <nav class="nav" aria-label="Main">
+          <a href="#">About us</a><a href="#">Results</a><a href="#">Answer</a><a href="#">Contact us</a>
+        </nav>
+        <button class="cta" type="button">Free Trial</button>
+      </header>
+      <div class="main">
+        <h2 class="big">Get a summary of your calls and completed tasks with minimal effort</h2>
+        <article class="card" aria-label="Example meeting summary">
+          <div class="top">
+            <div>
+              <div class="meet">Product sync</div>
+              <div class="meta">Today, 10:30 · 32 min · 5 people</div>
+            </div>
+            <span class="chip"><i></i>Summary ready</span>
+          </div>
+          <div class="label">Summary</div>
+          <p class="sum">Launch moves to 14 November. Onboarding emails go out a week earlier. The pricing page still needs final copy.</p>
+          <div class="label">Tasks</div>
+          <ul class="tasks">
+            <li class="done"><span class="box"><svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Update launch date in the roadmap</span><span class="who">Ivan · today</span></li>
+            <li><span class="box"><svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Finalize pricing page copy</span><span class="who">Olena · Fri</span></li>
+            <li><span class="box"><svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Schedule onboarding emails</span><span class="who">Mark · Mon</span></li>
+          </ul>
+          <div class="synced">Example · tasks are sent to your tracker automatically</div>
+        </article>
+      </div>
+      <ol class="steps">
+        <li><span class="n">01</span><b>Connect your calendar</b><span>Choose which meetings Notely joins.</span></li>
+        <li><span class="n">02</span><b>Talk as usual</b><span>It records and transcribes in the background.</span></li>
+        <li><span class="n">03</span><b>Get the summary</b><span>Decisions and tasks with owners and deadlines, right after the call.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <canvas id="smoke"></canvas>
+
+  <div class="loader" id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="bar"><i id="barFill"></i><span class="pct" id="pct">0%</span></div>
+  </div>
 </div>
 
 <script>
@@ -161,47 +220,25 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   const easeOut = t => 1 - Math.pow(1 - t, 3);
   const easeSine = t => 0.5 - 0.5 * Math.cos(Math.PI * t);
-  let bc = null;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Scroll timeline, in screen heights. Each text scene is pinned:
-  // scrolling first moves the blob, only then the text evaporates upwards and the next one is typed.
-  const SEG = [
-    ["holdN", 0.3],    // the "n" rests
-    ["morph", 1.0],    // n → blob
-    ["t2in", 0.55],    // scene 2 text is typed
-    ["hold2", 0.3],
-    ["move", 1.15],     // blob drifts right, text 2 stays pinned
-    ["t2out", 0.45],   // text 2 evaporates upwards
-    ["t3in", 0.55],    // scene 3 text is typed on the left
-    ["hold3", 0.3],
-    ["shift", 0.8],    // blob moves again, text 3 stays pinned
-    ["t3out", 0.45],   // text 3 evaporates upwards
-    ["letters", 1.8],  // sequins → letters → track → captions
-    ["evap", 1.1],     // blob evaporates as letters, headline is typed
-    ["end", 0.35]
-  ];
-  const TOTAL = SEG.reduce((a, s) => a + s[1], 0);
-  const T = {};
-  SEG.reduce((a, [k, v]) => { T[k] = [a / TOTAL, (a + v) / TOTAL]; return a + v; }, 0);
-  { const [l0, l1] = T.letters, [e0, e1] = T.evap;
-    T.footIn = [l0 + (l1 - l0) * 0.96, l1 + (l1 - l0) * 0.05];
-    T.head = [e0 + (e1 - e0) * 0.22, e1 - (e1 - e0) * 0.04];
-    T.hint = [T.holdN[1] * 0.3, T.holdN[1] + (T.morph[1] - T.morph[0]) * 0.2]; }
-  document.querySelector(".track").style.height = ((TOTAL + 1) * 100) + "vh";
+  const LOAD_MS = reduce ? 600 : 3000;   // preloader length
+  const root = document.documentElement;
+  root.classList.add("loading");
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  scrollTo(0, 0);
 
   const stage = document.getElementById("stage");
   const glc = document.getElementById("gl");
-  const cv = document.getElementById("fx");
-  const ctx = cv.getContext("2d");
   const sc = document.getElementById("smoke");
   const sctx = sc.getContext("2d");
-  const bgc = document.getElementById("bgc");
-  const bctx = bgc.getContext("2d");
-  const hint = document.getElementById("hint");
-  const foot = document.getElementById("foot");
+  const b1 = document.getElementById("b1");
+  const b2 = document.getElementById("b2");
+  const loader = document.getElementById("loader");
+  const barFill = document.getElementById("barFill");
+  const pctEl = document.getElementById("pct");
 
-  /* ---------- text splitting ---------- */
+  /* ---------- typewriter ---------- */
   function split(el) {
     const out = [];
     const walk = node => {
@@ -222,40 +259,11 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     walk(el);
     return out;
   }
-
-  // typewriter: characters appear one by one; leaving the scene deletes them backwards
-  function typer(el) {
-    const chars = split(el);
-    const n = chars.length;
-    const r = rnd(n * 31 + 5);
-    const drift = chars.map(() => [(r() - .5) * 0.5, 0.9 + r() * 0.9, (r() - .5) * 26, r() * 0.25]);
-    return { el, chars, shown: -1, caret: -2, typing: null, out: -1, drift };
-  }
-  // letters lift off one by one, left to right, and dissolve upwards
-  function evaporate(tp, q) {
-    if (Math.abs(q - tp.out) < 1e-4) return;
-    tp.out = q;
-    const n = tp.chars.length, st = 1.1;
-    tp.chars.forEach((c, k) => {
-      const [dx, up, rot, jit] = tp.drift[k];
-      const e = clamp(q * (1 + st) - (k / n) * st - jit * (1 - q));
-      if (e <= 0) { c.style.transform = c.style.opacity = c.style.filter = c.style.color = ""; return; }
-      const a = e * e;
-      c.style.transform = `translate(${dx * a}em, ${-up * a}em) rotate(${rot * a}deg) scale(${1 - 0.25 * a})`;
-      c.style.opacity = 1 - Math.pow(e, 1.4);
-      c.style.filter = `blur(${a * 7}px)`;
-      c.style.color = `rgb(255,${Math.round(255 - 95 * e)},${Math.round(255 - 200 * e)})`;
-    });
-  }
-  function type(tp, inP, outP, keepCaret) {
-    const n = tp.chars.length;
-    const count = Math.max(0, Math.min(n, Math.round(n * inP)));
-    if (count !== tp.shown) {
-      tp.chars.forEach((c, i) => c.classList.toggle("on", i < count));
-      tp.shown = count;
-    }
-    evaporate(tp, outP);
-    const active = inP > 0 && outP <= 0 && (keepCaret || inP < 1);
+  const typer = el => ({ el, chars: split(el), shown: -1, caret: -2, typing: null });
+  function type(tp, inP, keepCaret) {
+    const n = tp.chars.length, count = Math.max(0, Math.min(n, Math.round(n * inP)));
+    if (count !== tp.shown) { tp.chars.forEach((c, i) => c.classList.toggle("on", i < count)); tp.shown = count; }
+    const active = inP > 0 && (keepCaret || inP < 1);
     const caret = active ? (count === 0 ? -1 : count - 1) : -2;
     if (caret !== tp.caret) {
       if (tp.caret >= 0) tp.chars[tp.caret].classList.remove("cur");
@@ -267,20 +275,14 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     const isTyping = inP > 0 && inP < 1;
     if (isTyping !== tp.typing) { tp.el.classList.toggle("typing", isTyping); tp.typing = isTyping; }
   }
-
-  const tp2 = typer(document.getElementById("s2"));
-  const tp3 = typer(document.getElementById("s3"));
-  const tp2s = typer(document.getElementById("s2sub"));
-  const tp3s = typer(document.getElementById("s3sub"));
   const tpH = typer(document.getElementById("headline"));
-  const footChars = [...foot.querySelectorAll("p")].flatMap(p => split(p));
+  const tpLead = typer(document.getElementById("lead"));
+  const tpSmall = typer(document.getElementById("small"));
 
-  /* ---------- WebGL sequins ---------- */
+  /* ---------- WebGL letters ---------- */
   let gl = null, prog, buf, uRes, uDpr, atlasTex;
   const STRIDE = 8;
-  try {
-    gl = glc.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false });
-  } catch (e) { gl = null; }
+  try { gl = glc.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false }); } catch (e) { gl = null; }
   if (gl) {
     const vs = `
       attribute vec2 aPos; attribute float aSize; attribute float aRot; attribute float aTilt; attribute float aLight; attribute float aAlpha; attribute float aGlyph;
@@ -301,15 +303,15 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
         float c = cos(vRot), s = sin(vRot);
         p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
         float t = max(abs(vTilt), 0.18);
-        vec2 q = vec2(p.x / t, p.y);             /* the letter turns around its vertical axis */
+        vec2 q = vec2(p.x / t, p.y);
         if (abs(q.x) > 1.0) discard;
-        if (vTilt < 0.0) q.x = -q.x;               /* back side shows mirrored */
+        if (vTilt < 0.0) q.x = -q.x;
         vec2 uv = q * 0.5 + 0.5;
         vec2 cell = vec2(mod(vGlyph, 8.0), floor(vGlyph / 8.0));
         float ink = texture2D(uAtlas, (cell + uv) / 8.0).a;
         if (ink < 0.02) discard;
         vec3 dark = vec3(0.46, 0.13, 0.0);
-        vec3 base = vec3(0.902, 0.318, 0.0);     /* button colour #e65100 */
+        vec3 base = vec3(0.902, 0.318, 0.0);
         vec3 col = mix(dark, base, 0.4 + 0.6 * t);
         col = mix(col, vec3(0.98, 0.42, 0.05), step(0.0, vTilt) * 0.25);
         float L = clamp(vLight, 0.0, 1.0);
@@ -342,8 +344,6 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       gl.clearColor(0, 0, 0, 0);
     }
   }
-
-  /* ---------- glyph atlas: 8 × 8 letters ---------- */
   const ATLAS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789";
   let atlasReady = false;
   function buildAtlas() {
@@ -362,42 +362,33 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     atlasReady = true;
   }
+  let fctx = null; // 2D fallback when WebGL is unavailable
 
-  /* ---------- smoke sprites ---------- */
-  const smokeSprites = [1, 2, 3, 4].map(seed => {
-    const r = rnd(seed * 97), c = document.createElement("canvas"); c.width = c.height = 160;
+  /* ---------- light, small cursor smoke ---------- */
+  const smokeSprite = (() => {
+    const r = rnd(97), c = document.createElement("canvas"); c.width = c.height = 96;
     const g = c.getContext("2d");
-    for (let k = 0; k < 26; k++) {
-      const a = r() * Math.PI * 2, d = Math.pow(r(), 0.7) * 38, x = 80 + Math.cos(a) * d, y = 80 + Math.sin(a) * d, rad = 8 + r() * 26;
+    for (let k = 0; k < 14; k++) {
+      const a = r() * Math.PI * 2, d = Math.pow(r(), 0.8) * 18, x = 48 + Math.cos(a) * d, y = 48 + Math.sin(a) * d, rad = 8 + r() * 18;
       const gr = g.createRadialGradient(x, y, 0, x, y, rad);
-      gr.addColorStop(0, "rgba(255,255,255,0.24)"); gr.addColorStop(0.6, "rgba(255,255,255,0.07)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      gr.addColorStop(0, "rgba(255,214,182,0.28)"); gr.addColorStop(1, "rgba(255,214,182,0)");
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
     }
-    const o = document.createElement("canvas"); o.width = o.height = 160;
-    const og = o.getContext("2d"); og.filter = "blur(5px)"; og.drawImage(c, 0, 0);
+    const o = document.createElement("canvas"); o.width = o.height = 96;
+    const og = o.getContext("2d"); og.filter = "blur(4px)"; og.drawImage(c, 0, 0);
     return o;
-  });
+  })();
+  const puffs = [];
 
   /* ---------- state ---------- */
-  let W = 0, H = 0, DPR = 1, N = 0;
-  let P = 0, target = 0, last = performance.now();
-  let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, swX, swY, evR, evDX, evRise, evLetter, evCh, evRot, letterIdx, twR;
-  let dX, dY, vX, vY, light, spin, data, gBase, gRate, gT, resp;
-  let c0 = { x: 0, y: 0 }, c1 = { x: 0, y: 0 }, c2 = { x: 0, y: 0 }, c3 = { x: 0, y: 0 }, R = 100;
-  let emitAt = [];
-  const DRAW = 0.9, FLY = 0.3; // share of the letters phase the blob spends drawing; flight time of one letter
-  let slots = [], path = null;
-  const evapChars = "LettheAItakenotesnotely";
-  const BIG = 2.1;
-  const EVF = '700 18px "Space Grotesk", sans-serif';
-  const GENF = '700 15px "Space Grotesk", sans-serif';
-  const GLYPHS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const glyph = n => GLYPHS[((n % GLYPHS.length) + GLYPHS.length) % GLYPHS.length];
-
-  // pointer
+  let W = 0, H = 0, DPR = 1, N = 0, R = 100, c0 = { x: 0, y: 0 };
+  let nX, nY, bA, bR, delay, phase, flip0, flipRate, size, rot0, twR, swX;
+  let dX, dY, vX, vY, light, spin, gBase, gRate, gT, resp, data;
+  let loadStart = 0, loaded = false, introAt = 0, last = performance.now();
+  let P = 0, target = 0;
+  let windX = 0, windV = 0;
   const ptr = { x: -9999, y: -9999, mx: 0, my: 0, lastT: 0, emitX: 0, emitY: 0, vx: 0, vy: 0, inside: false };
   let stir = 0;
-  const puffs = [];
 
   function sampleN() {
     const hN = Math.min(H * 0.5, W * 0.62);
@@ -421,66 +412,26 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     return { pts, ox: W * 0.5 - oc.width / 2, oy: H * 0.46 - oc.height / 2, step, hN };
   }
 
-  function buildPath() {
-    if (!slots.length) { path = null; return; }
-    const narrow = W < 760;
-    const s0 = slots[0];
-    const S = { x: c2.x - R * (narrow ? 0.45 : 0.8), y: c2.y + R * 0.5 };
-    const E = { x: s0.x + 2, y: s0.y - Math.max(46, H * 0.07) };
-    const C1 = { x: S.x - W * (narrow ? 0.25 : 0.2), y: S.y + H * 0.04 };
-    const C2 = { x: E.x + W * (narrow ? 0.35 : 0.32), y: E.y - H * 0.24 };
-    const n = 240, xs = new Float32Array(n + 1), ys = new Float32Array(n + 1), len = new Float32Array(n + 1);
-    for (let i = 0; i <= n; i++) {
-      const t = i / n, u = 1 - t;
-      xs[i] = u * u * u * S.x + 3 * u * u * t * C1.x + 3 * u * t * t * C2.x + t * t * t * E.x;
-      ys[i] = u * u * u * S.y + 3 * u * u * t * C1.y + 3 * u * t * t * C2.y + t * t * t * E.y;
-      if (i) len[i] = len[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
-    }
-    path = { xs, ys, len, total: len[n], n, S, E };
-  }
-  function pathAt(u) {
-    const L = clamp(u) * path.total, { len, xs, ys, n } = path;
-    let lo = 0, hi = n;
-    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (len[m] < L) lo = m; else hi = m; }
-    const f = (L - len[lo]) / ((len[hi] - len[lo]) || 1);
-    return [lerp(xs[lo], xs[hi], f), lerp(ys[lo], ys[hi], f), Math.atan2(ys[hi] - ys[lo], xs[hi] - xs[lo])];
-  }
-
-  function measureSlots() {
-    slots = [];
-    const sr = stage.getBoundingClientRect();
-    footChars.forEach(el => {
-      const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
-      slots.push({ ch: el.textContent, x: r.left - sr.left, y: r.top - sr.top + r.height / 2,
-        font: `${cs.fontWeight} ${cs.fontSize} "Space Grotesk", sans-serif` });
-    });
-  }
-
   function layout() {
     W = stage.clientWidth; H = stage.clientHeight;
     DPR = Math.min(2, window.devicePixelRatio || 1);
-    [glc, cv, sc].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
-    sizeBg();
+    [glc, sc].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
+    if (!gl && !fctx) fctx = glc.getContext("2d");
     buildAtlas();
     const narrow = W < 760;
-    R = narrow ? Math.min(W * 0.32, H * 0.2) : Math.min(W * 0.2, H * 0.3, 420);
-    c0 = { x: W * 0.5, y: H * (narrow ? 0.4 : 0.44) };
-    c1 = narrow ? { x: W * 0.62, y: H * 0.25 } : { x: W * 0.72, y: H * 0.47 };
-    c2 = narrow ? { x: W * 0.3, y: H * 0.3 } : { x: W * 0.17, y: H * 0.42 };
-    c3 = narrow ? { x: W * 0.66, y: H * 0.28 } : { x: W * 0.76, y: H * 0.4 };
+    R = narrow ? Math.min(W * 0.34, H * 0.2) : Math.min(W * 0.18, H * 0.32, 420);
+    c0 = narrow ? { x: W * 0.5, y: H * 0.36 } : { x: W * 0.49, y: H * 0.44 };
 
     const r = rnd(7);
     N = narrow ? 1400 : 2800;
     const nS = sampleN();
     const A = n => new Float32Array(n);
     nX = A(N); nY = A(N); bA = A(N); bR = A(N); delay = A(N); phase = A(N); flip0 = A(N); flipRate = A(N);
-    size = A(N); rot0 = A(N); swX = A(N); swY = A(N); evR = A(N); evDX = A(N); evRise = A(N); evRot = A(N); twR = A(N);
+    size = A(N); rot0 = A(N); twR = A(N); swX = A(N);
     dX = A(N); dY = A(N); vX = A(N); vY = A(N); light = A(N); spin = A(N);
-    evLetter = new Uint8Array(N); evCh = new Array(N); letterIdx = new Int16Array(N).fill(-1);
-    data = new Float32Array(N * STRIDE);
     gBase = A(N); gRate = A(N); gT = A(N); resp = A(N);
+    data = new Float32Array(N * STRIDE);
     const np = nS.pts.length / 2;
-    const maxEvapLetters = narrow ? 240 : 480; let evCount = 0;
     const seqBase = 2 * Math.max(7, Math.min(nS.step * 3.6, R * 0.085));
     for (let i = 0; i < N; i++) {
       const k = Math.floor(r() * np);
@@ -492,25 +443,15 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       flip0[i] = r() * Math.PI * 2; flipRate[i] = 0.3 + r() * 0.9; twR[i] = 0.4 + r() * 1.4;
       size[i] = seqBase * (0.8 + r() * 0.5);
       rot0[i] = (r() - 0.5) * 0.9;
+      swX[i] = (r() - 0.5) * 2;
       gBase[i] = Math.floor(r() * 62); gRate[i] = 0.15 + r() * 0.6;
       resp[i] = r() < 0.4 ? 0.08 + r() * 0.17 : 0.55 + r() * 0.55;
-      const a = r() * Math.PI * 2, m = 0.4 + r() * 0.9; swX[i] = Math.cos(a) * m; swY[i] = Math.sin(a) * m;
-      evR[i] = r(); evDX[i] = (r() - .5) * 1.6; evRise[i] = 0.25 + r() * 0.4; evRot[i] = (r() - .5) * 1.6;
-      evCh[i] = evapChars[(r() * evapChars.length) | 0];
-      if (evCount < maxEvapLetters && r() < 0.25) { evLetter[i] = 1; evCount++; }
     }
-    measureSlots();
-    const L = slots.length; const used = new Set();
-    for (let k = 0; k < L; k++) { let i; do { i = (r() * N) | 0; } while (used.has(i)); used.add(i); letterIdx[i] = k; }
-    // the blob writes the captions as one steady stream of letters while it travels left → right
-    const r2 = rnd(11), nS2 = slots.length;
-    emitAt = slots.map((sl, k) => clamp(0.03 + (k / Math.max(1, nS2 - 1)) * 0.6 + (r2() - 0.5) * 0.12, 0.01, 0.68));
   }
 
-  /* ---------- pointer + smoke ---------- */
+  /* ---------- pointer ---------- */
   function onMove(e) {
-    const sr = stage.getBoundingClientRect();
-    const x = e.clientX - sr.left, y = e.clientY - sr.top, now = e.timeStamp || performance.now();
+    const x = e.clientX, y = e.clientY, now = e.timeStamp || performance.now();
     if (!ptr.inside) { ptr.x = ptr.emitX = x; ptr.y = ptr.emitY = y; ptr.lastT = now; ptr.inside = true; return; }
     const dt = Math.max(1, now - ptr.lastT) / 1000;
     const ivx = (x - ptr.x) / dt, ivy = (y - ptr.y) / dt;
@@ -519,183 +460,114 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     ptr.mx += x - ptr.x; ptr.my += y - ptr.y;
     ptr.x = x; ptr.y = y; ptr.lastT = now;
     if (reduce) return;
-    // drop smoke puffs along the stroke
     let dx = x - ptr.emitX, dy = y - ptr.emitY, dist = Math.hypot(dx, dy);
-    const stepPx = 3.5;
+    const stepPx = 9;
     while (dist >= stepPx) {
       ptr.emitX += dx / dist * stepPx; ptr.emitY += dy / dist * stepPx;
       emit(ptr.emitX, ptr.emitY, ptr.vx, ptr.vy);
       dx = x - ptr.emitX; dy = y - ptr.emitY; dist = Math.hypot(dx, dy);
     }
   }
-  // boxes of the text currently on screen; smoke fades out around them so the copy stays readable
+  // smoke stays off the copy so it is always readable
   let textRects = [], rectsAt = -1;
-  const textEls = [".logo", ".nav", ".cta", "#hint", "#s2", "#s2sub", "#s3", "#s3sub", "#headline", "#foot"].map(q => document.querySelector(q));
-  function shown(el) {
-    if (el.id === "s2") return tp2.shown > 0 && tp2.out < 0.98;
-    if (el.id === "s3") return tp3.shown > 0 && tp3.out < 0.98;
-    if (el.id === "s2sub") return tp2s.shown > 0 && tp2s.out < 0.98;
-    if (el.id === "s3sub") return tp3s.shown > 0 && tp3s.out < 0.98;
-    if (el.id === "headline") return tpH.shown > 0;
-    if (el.id === "foot" || el.id === "hint") return parseFloat(el.style.opacity || "1") > 0.05;
-    return el.offsetParent !== null || getComputedStyle(el).display !== "none";
-  }
+  const textEls = [...document.querySelectorAll(".b1 .logo, .b1 .nav, .b1 .cta, #headline, #lead, #small")];
   function updateRects(now) {
-    if (now - rectsAt < 100) return;
+    if (now - rectsAt < 120) return;
     rectsAt = now;
-    const sr = stage.getBoundingClientRect();
-    textRects = textEls.filter(el => el && shown(el)).map(el => {
+    textRects = textEls.map(el => {
       const r = el.getBoundingClientRect();
-      return r.width && r.height ? [r.left - sr.left, r.top - sr.top, r.right - sr.left, r.bottom - sr.top] : null;
+      return r.width && r.height ? [r.left, r.top, r.right, r.bottom] : null;
     }).filter(Boolean);
   }
   function textDist(x, y) {
     let d = 1e9;
-    for (const [l, tp, rr, b] of textRects) {
-      const dx = Math.max(l - x, 0, x - rr), dy = Math.max(tp - y, 0, y - b);
-      d = Math.min(d, Math.hypot(dx, dy));
-    }
+    for (const [l, tp, rr, b] of textRects) d = Math.min(d, Math.hypot(Math.max(l - x, 0, x - rr), Math.max(tp - y, 0, y - b)));
     return d;
   }
   function emit(x, y, vx, vy) {
-    if (textDist(x, y) < 24) return;
-    if (puffs.length > 1600) puffs.shift();
-    const sp = Math.min(1, Math.hypot(vx, vy) / 2500);
-    puffs.push({ x, y, vx: vx * 0.42 + (Math.random() - .5) * 40, vy: vy * 0.42 + (Math.random() - .5) * 40,
-      age: 0, life: 0.55 + Math.random() * 0.45, s0: 18 + Math.random() * 14, s1: 90 + Math.random() * 90 + sp * 80,
-      rot: Math.random() * 6.28, vr: (Math.random() - .5) * 0.8, k: (Math.random() * 4) | 0, a: 0.14 + sp * 0.16 });
+    if (P > 0.02 || textDist(x, y) < 16) return;
+    if (puffs.length > 240) puffs.shift();
+    puffs.push({ x, y, vx: vx * 0.08 + (Math.random() - .5) * 18, vy: vy * 0.08 + (Math.random() - .5) * 18 - 10,
+      age: 0, life: 0.45 + Math.random() * 0.35, s0: 8 + Math.random() * 6, s1: 26 + Math.random() * 22,
+      rot: Math.random() * 6.28, vr: (Math.random() - .5) * 0.8, a: 0.22 + Math.random() * 0.12 });
   }
   addEventListener("pointermove", onMove, { passive: true });
   addEventListener("pointerdown", onMove, { passive: true });
   document.addEventListener("pointerleave", () => { ptr.inside = false; });
 
-  function drawSmoke(dt) {
+  function drawSmoke(dt, now) {
     sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     sctx.clearRect(0, 0, W, H);
-    drawDust(performance.now() / 1000);
-    updateRects(performance.now());
+    updateRects(now);
     for (let i = puffs.length - 1; i >= 0; i--) {
       const p = puffs[i];
       p.age += dt;
       if (p.age >= p.life) { puffs.splice(i, 1); continue; }
-      const damp = Math.exp(-dt * 2.3);
-      p.vx *= damp; p.vy *= damp; p.vy -= 8 * dt;
+      const damp = Math.exp(-dt * 4);
+      p.vx *= damp; p.vy *= damp;
       p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
       const t = p.age / p.life;
-      const a = (t < 0.08 ? t / 0.08 : 1) * Math.pow(1 - t, 1.6) * p.a;
       const s = lerp(p.s0, p.s1, easeOut(t));
       const clear = clamp((textDist(p.x, p.y) - s * 0.15) / (s * 0.75));
       if (clear <= 0.01) continue;
-      sctx.globalAlpha = a * clear;
+      sctx.globalAlpha = (t < 0.12 ? t / 0.12 : 1) * Math.pow(1 - t, 1.5) * p.a * clear;
       sctx.save(); sctx.translate(p.x, p.y); sctx.rotate(p.rot);
-      sctx.drawImage(smokeSprites[p.k], -s, -s, s * 2, s * 2);
+      sctx.drawImage(smokeSprite, -s, -s, s * 2, s * 2);
       sctx.restore();
     }
     sctx.globalAlpha = 1;
   }
 
-  /* ---------- living background: the Figma image drifts, light leaks breathe, dust floats ---------- */
-  const bgimg = document.getElementById("bgimg");
-  // [x, y, radius, r, g, b, alpha, speed, phase, wander]
-  const FIELDS = [
-    [0.10, 0.22, 0.30, 225, 30, 40, 0.42, 0.16, 0.0, 0.05],   // red leak, left
-    [0.13, 0.42, 0.22, 240, 95, 25, 0.34, 0.2, 1.7, 0.05],    // orange leak, left
-    [0.74, -0.02, 0.32, 105, 30, 210, 0.36, 0.14, 3.1, 0.05], // violet, top
-    [0.98, 0.92, 0.20, 150, 30, 170, 0.30, 0.18, 4.2, 0.04],  // violet, bottom-right
-    [0.72, 0.98, 0.26, 210, 72, 12, 0.28, 0.15, 2.4, 0.05],   // amber, bottom
-    [0.01, 0.99, 0.10, 255, 160, 40, 0.42, 0.25, 5.0, 0.03],  // warm bokeh, bottom-left
-    [0.27, 0.40, 0.05, 255, 150, 60, 0.22, 0.3, 0.9, 0.03],   // small bokeh
-    [0.55, 0.91, 0.06, 255, 150, 60, 0.24, 0.27, 2.2, 0.03]   // small bokeh
-  ];
-  let BW = 0, BH = 0;
-  const dust = [];
-  function sizeBg() {
-    BW = Math.max(160, Math.round(W / 4)); BH = Math.max(90, Math.round(H / 4));
-    bgc.width = BW; bgc.height = BH;
-    const r = rnd(3); dust.length = 0;
-    const n = Math.round(W * H / 16000);
-    for (let k = 0; k < n; k++) dust.push({ x: r(), y: r(), s: 0.6 + Math.pow(r(), 3) * 2.4, v: 0.004 + r() * 0.012, ph: r() * 6.28, warm: r() < 0.25, tw: 0.5 + r() * 1.5 });
-  }
-  function drawBg(t, p) {
-    const m = reduce ? 0 : 1, S = Math.max(BW, BH);
-    bgimg.style.transform = `translate(${(Math.sin(t * 0.05) * 1.1 - (p - 0.5) * 1.5) * m}%, ${Math.cos(t * 0.04) * 0.9 * m}%) scale(${1 + 0.025 * Math.sin(t * 0.07) * m})`;
-    bctx.clearRect(0, 0, BW, BH);
-    for (const [x, y, r, cr, cg, cb, a0, f, ph, wd] of FIELDS) {
-      const a = a0 * (0.75 + 0.25 * Math.sin(t * f * 1.7 + ph) * m);
-      const px = (x + (Math.sin(t * f + ph) * wd + Math.sin(t * f * 0.37 + ph * 2) * wd * 0.6) * m) * BW;
-      const py = (y + (Math.cos(t * f * 0.8 + ph) * wd + Math.sin(t * f * 0.53 + ph * 3) * wd * 0.5) * m) * BH;
-      const rr = r * S * (1 + 0.12 * Math.sin(t * f * 1.3 + ph * 1.7) * m);
-      const g = bctx.createRadialGradient(px, py, 0, px, py, rr);
-      g.addColorStop(0, `rgba(${cr},${cg},${cb},${a})`);
-      g.addColorStop(0.5, `rgba(${cr},${cg},${cb},${a * 0.45})`);
-      g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
-      bctx.fillStyle = g; bctx.fillRect(px - rr, py - rr, rr * 2, rr * 2);
-    }
-  }
-  function drawDust(t) {
-    const m = reduce ? 0 : 1;
-    for (const d of dust) {
-      const y = ((d.y - t * d.v * m) % 1 + 1) % 1, x = d.x + Math.sin(t * 0.3 + d.ph) * 0.006 * m;
-      sctx.globalAlpha = (0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * d.tw + d.ph))) * 0.8;
-      sctx.fillStyle = d.warm ? "#ff8a3d" : "#d9d4e6";
-      sctx.beginPath(); sctx.arc(x * W, y * H, d.s, 0, Math.PI * 2); sctx.fill();
-    }
-    sctx.globalAlpha = 1;
-  }
-
   /* ---------- render ---------- */
-  const letters = [];
-  function render(p, t, dt) {
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+  function render(now, dt) {
+    const t = now / 1000, motion = reduce ? 0 : 1;
+    // preloader clock: the n rests, then turns into the cloud while the bar fills
+    const lp = clamp((now - loadStart) / LOAD_MS);
+    const morph = sp(lp, 0.3, 1.0);
+    const q = easeSine(P);                         // scroll: cloud → ring → block 2
 
-    const morph = sp(p, ...T.morph);
-    const mv = easeSine(sp(p, ...T.move)), sh = easeSine(sp(p, ...T.shift));
-    let cx = lerp(lerp(c0.x, c1.x, mv), c2.x, sh);
-    let cy = lerp(lerp(c0.y, c1.y, mv), c2.y, sh) - Math.sin(mv * Math.PI) * H * 0.03 - Math.sin(sh * Math.PI) * H * 0.04;
-    const pL = sp(p, ...T.letters);
-    if (pL > 0) {
-      const u = easeSine(clamp(pL / DRAW));
-      cx = lerp(c2.x, c3.x, u);
-      cy = lerp(c2.y, c3.y, u) + Math.sin(u * Math.PI * 2) * H * 0.035;
-    }
-    // the blob glides after its target, so its travel never jerks with the scroll wheel
-    if (!bc || reduce) bc = { x: cx, y: cy };
-    else { const f = 1 - Math.exp(-dt * 2.6); bc.x += (cx - bc.x) * f; bc.y += (cy - bc.y) * f; }
-    cx = bc.x; cy = bc.y;
-    const pE = sp(p, ...T.evap);
-    const domFoot = sp(p, ...T.footIn);
-    const L = slots.length;
-    const motion = reduce ? 0 : 1;
-    letters.length = 0;
-
-    // pointer energy: short flicks barely stir, long sweeps spread the blob across the screen
+    // cursor energy for local pushes
     const moved = Math.hypot(ptr.mx, ptr.my);
-    const speed = moved / Math.max(dt, 1e-3);
     ptr.mx = ptr.my = 0;
-    const active = moved > 0.5 && motion;
-    if (active) stir = Math.min(1.6, stir + Math.min(speed, 3000) / 1000 * dt * 0.6);
+    const active = moved > 0.5 && motion && q < 0.05;
+    if (active) stir = Math.min(1.6, stir + Math.min(moved / Math.max(dt, 1e-3), 3000) / 1000 * dt * 0.6);
     stir *= Math.exp(-dt * (active ? 0.12 : 1.8));
     const k = 95 / (1 + stir * 3);
-    const rad = Math.min(Math.min(W, H) * 0.32, 55 + stir * 120);
+    const rad = Math.min(Math.min(W, H) * 0.28, 50 + stir * 100);
     const damp = Math.exp(-dt * 4.2);
-    const maxD = Math.min(W, H) * 0.24;
+    const maxD = Math.min(W, H) * 0.2;
     const imp = Math.min(1, dt * 60);
     const pvx = ptr.vx, pvy = ptr.vy;
     if (!active) { ptr.vx *= Math.exp(-dt * 8); ptr.vy *= Math.exp(-dt * 8); }
 
-    // envelope of the irregular round blob
+    // blowing at the cloud drifts the whole cloud left or right, then it floats back
+    if (active && morph > 0.5) {
+      const near = clamp(1 - Math.hypot(ptr.x - (c0.x + windX), ptr.y - c0.y) / (R * 2.2));
+      windV += pvx * 0.9 * near * dt;
+    }
+    windV += -windX * 2.2 * dt;
+    windV *= Math.exp(-dt * 1.6);
+    windX = clamp(windX + windV * dt, -W * 0.2, W * 0.2);
+
+    const cx = c0.x + windX + Math.sin(t * 0.21) * W * 0.008 * motion;
+    const cy = c0.y + Math.sin(t * 0.33 + 1) * H * 0.01 * motion;
     const env = a => 1 + 0.14 * Math.sin(3 * a + 1.5 * t) + 0.09 * Math.sin(5 * a - 2.2 * t + 1.3) + 0.07 * Math.sin(2 * a + 1.0 * t + 2);
+
+    // ring that opens onto block 2
+    const diag = Math.hypot(W, H);
+    const gather = ease(clamp(q / 0.22));
+    const ringR = lerp(R * 0.95, diag * 0.85, Math.pow(clamp((q - 0.08) / 0.92), 1.6));
+    const band = R * (0.42 + 0.9 * q);
+    const zoom = 1 + q * 1.6;
+    const ringFade = 1 - clamp((q - 0.86) / 0.14);
 
     let count = 0;
     for (let i = 0; i < N; i++) {
       const ph = phase[i];
-      // "n": the whole letter breathes and ripples
-      // each letter circles slowly, a wave runs through the strokes, and the whole n floats
       const orb = 5 + twR[i] * 6, osp = (0.5 + flipRate[i] * 0.7) * (swX[i] < 0 ? -1 : 1);
       const nx = nX[i] + (Math.cos(t * osp + ph) * orb + Math.sin(t * 0.8 - nY[i] * 0.01) * 11 + Math.sin(t * 0.35) * 8) * motion;
       const ny = nY[i] + (Math.sin(t * osp + ph) * orb + Math.cos(t * 0.65 - nX[i] * 0.012) * 7 + Math.sin(t * 0.5 + 1) * 9) * motion;
-      // blob: irregular round shape, always turning, inner layers faster
+
       const ang = bA[i] + t * (0.13 + 0.24 * (1 - bR[i])) * motion;
       const halo = clamp((bR[i] - 0.82) / 0.6);
       const rr = R * bR[i] * env(ang) * (1 + halo * (0.14 * Math.sin(t * (0.7 + flipRate[i]) + ph * 3) + 0.08 * Math.sin(t * 1.9 + ang * 4)) * motion);
@@ -703,84 +575,50 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       const by = cy + Math.sin(ang) * rr * 0.96 + Math.sin(t * 0.9 + ph) * 2 * motion;
 
       const mi = ease(clamp((morph - delay[i] * 0.42) / 0.58));
-      const kx = (nx + bx) / 2 + swX[i] * R * 0.9, ky = (ny + by) / 2 + swY[i] * R * 0.9;
+      const kx = (nx + bx) / 2 + swX[i] * R * 0.6, ky = (ny + by) / 2 - R * 0.3 * (1 - bR[i]);
       const u = 1 - mi;
       let hx = u * u * nx + 2 * u * mi * kx + mi * mi * bx;
       let hy = u * u * ny + 2 * u * mi * ky + mi * mi * by;
 
-      // pointer physics on top of the scripted position
+      if (q > 0) {
+        const ra = bA[i] + t * 0.06 * motion + q * 0.6;
+        const rad2 = ringR + (bR[i] - 0.55) * band;
+        const g2 = clamp(gather * 1.25 - delay[i] * 0.25);
+        hx = lerp(hx, cx + Math.cos(ra) * rad2, g2);
+        hy = lerp(hy, cy + Math.sin(ra) * rad2, g2);
+      }
+
       let vx = vX[i], vy = vY[i];
       if (active) {
         const ex = hx + dX[i] - ptr.x, ey = hy + dY[i] - ptr.y, dd = Math.hypot(ex, ey);
         if (dd < rad) {
           let f = 1 - dd / rad; f *= f;
           const inv = 1 / (dd + 1e-3);
-          vx += (ex * inv * 150 * (0.5 + stir) + pvx * 0.2 * (1 + stir * 0.6)) * f * imp * resp[i];
-          vy += (ey * inv * 150 * (0.5 + stir) + pvy * 0.2 * (1 + stir * 0.6)) * f * imp * resp[i];
+          vx += (ex * inv * 130 * (0.5 + stir) + pvx * 0.16 * (1 + stir * 0.6)) * f * imp * resp[i];
+          vy += (ey * inv * 130 * (0.5 + stir) + pvy * 0.16 * (1 + stir * 0.6)) * f * imp * resp[i];
         }
       }
       vx = (vx - dX[i] * k * dt) * damp; vy = (vy - dY[i] * k * dt) * damp;
       dX[i] += vx * dt; dY[i] += vy * dt;
-      const dm = Math.hypot(dX[i], dY[i]);
-      const md = maxD * Math.min(1, resp[i] * 1.2);
+      const dm = Math.hypot(dX[i], dY[i]), md = maxD * Math.min(1, resp[i] * 1.2);
       if (dm > md) { dX[i] *= md / dm; dY[i] *= md / dm; vx *= 0.5; vy *= 0.5; }
-      // keep every sequin inside the screen
-      const m = 12, sx = hx + dX[i], sy = hy + dY[i];
-      if (sx < m) { dX[i] = m - hx; vx = Math.abs(vx) * 0.3; } else if (sx > W - m) { dX[i] = W - m - hx; vx = -Math.abs(vx) * 0.3; }
-      if (sy < m) { dY[i] = m - hy; vy = Math.abs(vy) * 0.3; } else if (sy > H - m) { dY[i] = H - m - hy; vy = -Math.abs(vy) * 0.3; }
       vX[i] = vx; vY[i] = vy;
       const spd = Math.hypot(vx, vy);
       spin[i] += spd * dt * 0.025;
       light[i] = Math.max(clamp(spd / 380), light[i] * Math.exp(-dt * 2.2));
 
-      let x = hx + dX[i], y = hy + dY[i];
-      // on the n letters face forward (they only turn when pushed); in the blob they keep flipping
+      const x = hx + dX[i], y = hy + dY[i];
       const tiltN = Math.cos(spin[i]) * (0.88 + 0.12 * Math.sin(t * 0.9 + ph));
       const tilt = lerp(tiltN, Math.cos(flip0[i] + t * flipRate[i] * 0.5 * motion + spin[i]), mi);
       const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion * mi;
       gT[i] += dt * gRate[i] * mi * motion;
-      let lt = Math.max(light[i], glint);
-      let alpha = 1 - halo * mi * (0.55 + 0.25 * Math.sin(t * 1.3 + ph)), s = size[i] * (1 + 0.15 * mi) * (1 - halo * mi * 0.35), rot = rot0[i] + Math.sin(spin[i] * 0.3) * 0.6;
-
-      const li = letterIdx[i];
-      let gen = li < 0 && pL > 0 && pE <= 0;
-      if (li >= 0 && pL > 0) {
-        const sl = slots[li];
-        const pr = clamp((pL - emitAt[li]) / FLY);
-        if (pr > 0) {
-          // rise out of the blob from where the sequin sits, drift outwards, then glide into place
-          const ox = x - cx, oy = y - cy, od = Math.hypot(ox, oy) || 1;
-          const kx = x + ox / od * R * 0.45 + (sl.x - x) * 0.2, ky = y + oy / od * R * 0.25 - H * 0.12;
-          const q = ease(pr), u1 = 1 - q;
-          const lx = u1 * u1 * x + 2 * u1 * q * kx + q * q * sl.x;
-          const ly = u1 * u1 * y + 2 * u1 * q * ky + q * q * sl.y;
-          const lock = clamp((pr - 0.62) / 0.12);           // moment the right letter is chosen
-          const ch = lock > 0 ? sl.ch : glyph(Math.floor(t * 13 + li * 7.3) + li);
-          const m = clamp(pr / 0.12), white = Math.max(lock * 0.85, clamp((pr - 0.8) / 0.2));
-          const spinA = (swX[i] * 1.2) * (1 - q);
-          const pop = lock > 0 && lock < 1 ? 1 + Math.sin(lock * Math.PI) * 0.35 : 1;
-          letters.push({ x: lx, y: ly, a: spinA, k: lerp(BIG, 1, q) * pop, ch, font: sl.font, m, white, alpha: 1 - domFoot,
-            glow: Math.max(1 - white, Math.sin(lock * Math.PI)) });
-          x = lx; y = ly; alpha = 1 - m; lt = Math.max(lt, m);
-        } else if (pL < 1) gen = true;
-      } else if (li < 0 && pE > 0) {
-        const e = clamp(pE * 1.7 - evR[i] * 0.7);
-        if (e > 0) {
-          const q = easeOut(e);
-          x += evDX[i] * R * q + Math.sin(t * 1.4 + ph) * 10 * q * motion;
-          y -= q * H * evRise[i];
-          if (evLetter[i]) {
-            const la = (e < 0.12 ? e / 0.12 : 1) * Math.pow(1 - q, 0.8);
-            letters.push({ x, y, a: evRot[i] * q, k: lerp(0.5, 1.6, q), ch: evCh[i], font: EVF, m: 1, white: q * 0.7, alpha: la, evap: 1, glow: 1 - q });
-            alpha *= 1 - clamp(e / 0.12);
-          } else alpha *= Math.pow(1 - q, 1.6);
-          lt = Math.max(lt, q * 0.8);
-          s *= 1 - q * 0.5;
-        }
-      }
+      const lt = Math.max(light[i], glint, q * 0.35);
+      const alpha = (1 - halo * mi * (0.55 + 0.25 * Math.sin(t * 1.3 + ph))) * ringFade;
       if (alpha <= 0.01) continue;
+      const s = size[i] * (1 + 0.15 * mi) * (1 - halo * mi * 0.35) * zoom;
       const o = count * STRIDE;
-      data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot; data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
+      data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot0[i] + Math.sin(spin[i] * 0.3) * 0.6;
+      data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
       data[o + 7] = (gBase[i] + Math.floor(gT[i] + spin[i] * 0.5)) % 62;
       count++;
     }
@@ -791,73 +629,61 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
       gl.uniform2f(uRes, W, H); gl.uniform1f(uDpr, DPR);
       gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * STRIDE), gl.DYNAMIC_DRAW);
       gl.drawArrays(gl.POINTS, 0, count);
-    } else {
-      // simple fallback without WebGL
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    } else if (fctx) {
+      fctx.setTransform(DPR, 0, 0, DPR, 0, 0); fctx.clearRect(0, 0, W, H);
+      fctx.textAlign = "center"; fctx.textBaseline = "middle";
       for (let j = 0; j < count; j++) {
         const o = j * STRIDE, L2 = data[o + 5];
-        ctx.globalAlpha = data[o + 6];
-        ctx.fillStyle = `rgb(${lerp(230, 255, L2) | 0},${lerp(81, 190, L2) | 0},${lerp(0, 128, L2) | 0})`;
-        ctx.font = `700 ${Math.round(data[o + 2] * 0.72)}px "Space Grotesk", sans-serif`;
-        ctx.setTransform(DPR * Math.max(.18, Math.abs(data[o + 4])), 0, 0, DPR, data[o] * DPR, data[o + 1] * DPR);
-        ctx.fillText(ATLAS[data[o + 7] | 0], 0, 0);
+        fctx.globalAlpha = data[o + 6];
+        fctx.fillStyle = `rgb(${lerp(230, 255, L2) | 0},${lerp(81, 190, L2) | 0},${lerp(0, 128, L2) | 0})`;
+        fctx.font = `700 ${Math.round(data[o + 2] * 0.72)}px "Space Grotesk", sans-serif`;
+        fctx.setTransform(DPR * Math.max(.18, Math.abs(data[o + 4])), 0, 0, DPR, data[o] * DPR, data[o + 1] * DPR);
+        fctx.fillText(ATLAS[data[o + 7] | 0], 0, 0);
       }
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      ctx.globalAlpha = 1;
+      fctx.globalAlpha = 1;
     }
 
-    // glyphs
-    ctx.textBaseline = "middle";
-    for (const g of letters) {
-      const a = g.alpha * g.m;
-      if (a <= 0.01) continue;
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      ctx.translate(g.x, g.y); ctx.rotate(g.a); ctx.scale(g.k, g.k);
-      ctx.font = g.font;
-      ctx.textAlign = g.evap ? "center" : "left";
-      const gg = Math.round(lerp(196, 255, g.white)), b = Math.round(lerp(140, 255, g.white));
-      if (g.glow > 0.05) {
-        ctx.globalCompositeOperation = "lighter";
-        ctx.fillStyle = `rgba(255,120,30,${a * g.glow * 0.55})`;
-        ctx.fillText(g.ch, 0.6, 0.6); ctx.fillText(g.ch, -0.6, -0.6);
-        ctx.globalCompositeOperation = "source-over";
-      }
-      ctx.fillStyle = `rgba(255,${gg},${b},${a})`;
-      ctx.fillText(g.ch, 0, 0);
-    }
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // block 2 shows through the middle of the ring
+    glc.classList.toggle("front", q > 0.005);
+    b2.classList.toggle("on", q > 0.005);
+    if (q > 0.005 && q < 0.995) {
+      const hole = Math.max(0, (ringR - band * 0.55) * gather);
+      const m = `radial-gradient(circle at ${cx}px ${cy}px, #000 ${hole}px, transparent ${hole + Math.max(30, band * 0.35)}px)`;
+      b2.style.webkitMaskImage = m; b2.style.maskImage = m;
+    } else { b2.style.webkitMaskImage = b2.style.maskImage = "none"; }
+    b1.style.opacity = 1 - clamp((q - 0.6) / 0.3);
+    b2.classList.toggle("live", q > 0.8);
 
-    // DOM scenes: typed in, deleted out
-    // heading is typed first, then the small line; both evaporate together
-    const i2 = sp(p, ...T.t2in), o2 = sp(p, ...T.t2out), i3 = sp(p, ...T.t3in), o3 = sp(p, ...T.t3out);
-    type(tp2, clamp(i2 / 0.72), o2); type(tp2s, clamp((i2 - 0.72) / 0.28), clamp(o2 * 1.15 - 0.1), true);
-    type(tp3, clamp(i3 / 0.72), o3); type(tp3s, clamp((i3 - 0.72) / 0.28), clamp(o3 * 1.15 - 0.1), true);
-    type(tpH, sp(p, ...T.head), 0, true);
-    foot.style.opacity = domFoot;
-    const ho = 1 - sp(p, ...T.hint);
-    hint.style.opacity = ho; hint.style.pointerEvents = ho < 0.1 ? "none" : "auto";
-    drawBg(t, p);
+    // preloader bar and the intro typing
+    const pct = Math.round(lp * 100);
+    barFill.style.width = pct + "%"; pctEl.style.left = pct + "%"; pctEl.textContent = pct + "%";
+    loader.setAttribute("aria-valuenow", pct);
+    if (lp >= 1 && !loaded) {
+      loaded = true; introAt = now;
+      loader.classList.add("done"); b1.classList.add("ready");
+      root.classList.remove("loading");
+    }
+    if (loaded) {
+      const it = (now - introAt) / 1000 * (reduce ? 10 : 1);
+      type(tpH, sp(it, 0.35, 1.6));
+      type(tpLead, sp(it, 1.6, 3.0));
+      type(tpSmall, sp(it, 1.9, 2.8), true);
+    }
   }
 
   function readScroll() {
     const max = document.documentElement.scrollHeight - innerHeight;
-    target = max > 0 ? clamp(scrollY / max) : 0;
+    target = loaded && max > 0 ? clamp(scrollY / max) : 0;
   }
-
   function frame(now) {
     const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
     readScroll();
-    P = reduce ? target : P + (target - P) * (1 - Math.exp(-dt * 3.2));
+    P = reduce ? target : P + (target - P) * (1 - Math.exp(-dt * 4));
     if (Math.abs(target - P) < 1e-4) P = target;
-    render(P, now / 1000, dt);
-    drawSmoke(dt);
+    render(now, dt);
+    drawSmoke(dt, now);
     requestAnimationFrame(frame);
   }
-
-  hint.addEventListener("click", () => {
-    const max = document.documentElement.scrollHeight - innerHeight;
-    scrollTo({ top: max * T.t2in[1], behavior: reduce ? "auto" : "smooth" });
-  });
 
   let rt;
   addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(layout, 120); });
@@ -867,8 +693,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid var(--paper);outline-offset
     new Promise(r => setTimeout(r, 2500))
   ]);
   fontsReady.then(() => document.fonts.ready).then(() => {
-    layout(); readScroll(); P = target;
-    requestAnimationFrame(t => { last = t; frame(t); });
+    layout();
+    loadStart = last = performance.now();
+    requestAnimationFrame(frame);
   });
 })();
 </script>
