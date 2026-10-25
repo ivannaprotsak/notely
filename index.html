@@ -31,6 +31,9 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-ev
 #gl{z-index:1}
 #gl.front{z-index:5}
 #smoke{z-index:6;mix-blend-mode:screen}
+#liquid{z-index:3}
+/* when the liquid layer runs, it draws these words; the DOM copy stays for layout, caret and screen readers */
+.liquid .b1 #headline,.liquid .b1 .logo,.liquid .b1 .nav a{color:transparent}
 
 /* ---------- shared page frame ---------- */
 .frame{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;
@@ -164,6 +167,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     </div>
   </div>
 
+  <canvas id="liquid"></canvas>
+
   <section class="b2" id="b2" aria-label="Summaries">
     <div class="glow"></div>
     <div class="frame">
@@ -279,37 +284,114 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   const tpLead = typer(document.getElementById("lead"));
   const tpSmall = typer(document.getElementById("small"));
 
-  /* ---------- lens: letters near the cursor slant, stretch and split into orange fringes ---------- */
-  const lensChars = [...tpH.chars];
-  document.querySelectorAll(".b1 .logo, .b1 .nav a").forEach(el => { split(el).forEach(c => { c.classList.add("on"); lensChars.push(c); }); });
-  const lens = lensChars.map(el => ({ el, x: 0, y: 0, fs: 16, e: 0, key: "" }));
-  let lensAt = -1;
-  function measureLens(now) {
-    if (now - lensAt < 400) return;
-    lensAt = now;
-    for (const L of lens) {
-      const r = L.el.getBoundingClientRect();
-      L.x = r.left + r.width / 2; L.y = r.top + r.height / 2; L.fs = r.height || 16;
+  /* ---------- liquid text: headline, logo and menu are redrawn in WebGL and smear along the cursor's motion ---------- */
+  const liquidSrc = [...tpH.chars];
+  document.querySelectorAll(".b1 .logo, .b1 .nav a").forEach(el => { split(el).forEach(c => { c.classList.add("on"); liquidSrc.push(c); }); });
+  const head1 = document.querySelector(".b1 .head");
+  const lq = document.getElementById("liquid");
+  const tc = document.createElement("canvas"), tctx = tc.getContext("2d");
+  const TRAIL = 24, trail = [];
+  let lgl = null, lprog, ltex, lU = {}, lsig = "", LDPR = 1, lqOn = false;
+  try { lgl = reduce ? null : lq.getContext("webgl", { premultipliedAlpha: true, alpha: true }); } catch (e) { lgl = null; }
+  if (lgl) {
+    const vs = `attribute vec2 p; varying vec2 vUv; void main(){ vUv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+    const fs = `
+      precision highp float;
+      uniform sampler2D uTex; uniform vec2 uRes; uniform vec4 uP[${TRAIL}]; uniform float uA[${TRAIL}];
+      varying vec2 vUv;
+      float ink(vec2 px){ vec2 uv = px / uRes; if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0; return texture2D(uTex, uv).a; }
+      void main(){
+        vec2 px = vec2(vUv.x, 1.0 - vUv.y) * uRes;
+        vec2 d = vec2(0.0);
+        for (int i = 0; i < ${TRAIL}; i++) {
+          float a = uA[i];
+          if (a > 0.0) { vec2 dv = px - uP[i].xy; d += uP[i].zw * exp(-dot(dv, dv) / 5600.0) * a; }
+        }
+        d *= 0.021;
+        float m = length(d); if (m > 42.0) d *= 42.0 / m;
+        // smear along the motion, then split the channels into two orange fringes
+        float core = 0.0;
+        for (int k = 0; k < 6; k++) core += ink(px - d * (float(k) / 5.0)) / 6.0;
+        core = max(core, ink(px - d));
+        float hot = clamp(ink(px - d * 1.55) - core, 0.0, 1.0);
+        float warm = clamp(ink(px - d * 0.45) - core, 0.0, 1.0);
+        vec3 col = vec3(1.0) * core + vec3(0.92, 0.30, 0.0) * hot + vec3(1.0, 0.68, 0.36) * warm;
+        float alpha = clamp(core + hot + warm, 0.0, 1.0);
+        gl_FragColor = vec4(col, alpha);
+      }`;
+    const sh = (t, src) => { const o = lgl.createShader(t); lgl.shaderSource(o, src); lgl.compileShader(o); return o; };
+    lprog = lgl.createProgram();
+    lgl.attachShader(lprog, sh(lgl.VERTEX_SHADER, vs)); lgl.attachShader(lprog, sh(lgl.FRAGMENT_SHADER, fs));
+    lgl.linkProgram(lprog);
+    if (!lgl.getProgramParameter(lprog, lgl.LINK_STATUS)) lgl = null;
+    else {
+      lgl.useProgram(lprog);
+      const b = lgl.createBuffer(); lgl.bindBuffer(lgl.ARRAY_BUFFER, b);
+      lgl.bufferData(lgl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), lgl.STATIC_DRAW);
+      const loc = lgl.getAttribLocation(lprog, "p"); lgl.enableVertexAttribArray(loc); lgl.vertexAttribPointer(loc, 2, lgl.FLOAT, false, 0, 0);
+      ltex = lgl.createTexture(); lgl.bindTexture(lgl.TEXTURE_2D, ltex);
+      lgl.texParameteri(lgl.TEXTURE_2D, lgl.TEXTURE_MIN_FILTER, lgl.LINEAR); lgl.texParameteri(lgl.TEXTURE_2D, lgl.TEXTURE_MAG_FILTER, lgl.LINEAR);
+      lgl.texParameteri(lgl.TEXTURE_2D, lgl.TEXTURE_WRAP_S, lgl.CLAMP_TO_EDGE); lgl.texParameteri(lgl.TEXTURE_2D, lgl.TEXTURE_WRAP_T, lgl.CLAMP_TO_EDGE);
+      ["uTex", "uRes", "uP", "uA"].forEach(n => lU[n] = lgl.getUniformLocation(lprog, n));
+      lgl.uniform1i(lU.uTex, 0);
+      lgl.enable(lgl.BLEND); lgl.blendFunc(lgl.ONE, lgl.ONE_MINUS_SRC_ALPHA);
     }
   }
-  function updateLens(now, dt) {
-    if (reduce) return;
-    measureLens(now);
-    const on = ptr.inside && P < 0.3;
-    for (const L of lens) {
-      const radius = Math.max(70, L.fs * 1.1);
-      const d = on ? Math.hypot(ptr.x - L.x, (ptr.y - L.y) * 1.4) : 1e9;
-      const want = clamp(1 - d / radius);
-      L.e += (want - L.e) * (1 - Math.exp(-dt * (want > L.e ? 16 : 3.5)));
-      if (L.e < 0.004) L.e = 0;
-      const e = L.e, key = e.toFixed(3);
-      if (key === L.key) continue;
-      L.key = key;
-      if (!e) { L.el.style.transform = L.el.style.textShadow = ""; continue; }
-      const o = L.fs * 0.06 * e;
-      L.el.style.transform = `skewX(${-13 * e}deg) scaleX(${1 + 0.16 * e})`;
-      L.el.style.textShadow = `${-o}px 0 rgba(255,170,90,${0.85 * e}), ${o}px 0 rgba(214,60,0,${0.85 * e}), 0 0 ${o * 2.5}px rgba(255,120,30,${0.35 * e})`;
+  function sizeLiquid() {
+    if (!lgl) return;
+    LDPR = Math.min(1.5, window.devicePixelRatio || 1);
+    lq.width = tc.width = Math.round(W * LDPR); lq.height = tc.height = Math.round(H * LDPR);
+    lsig = "";
+    if (!lqOn) { lqOn = true; stage.classList.add("liquid"); }
+  }
+  const fontCache = new WeakMap();
+  function drawLiquidText() {
+    tctx.setTransform(LDPR, 0, 0, LDPR, 0, 0);
+    tctx.clearRect(0, 0, W, H);
+    tctx.fillStyle = "#fff"; tctx.textBaseline = "alphabetic";
+    const headA = parseFloat(getComputedStyle(head1).opacity) || 0, b1A = parseFloat(b1.style.opacity || "1");
+    for (const el of liquidSrc) {
+      if (!el.classList.contains("on")) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width) continue;
+      let f = fontCache.get(el.parentElement);
+      if (!f) {
+        const cs = getComputedStyle(el);
+        const font = `${cs.fontWeight} ${cs.fontSize} "Space Grotesk", sans-serif`;
+        tctx.font = font;
+        const mm = tctx.measureText("Hg");
+        f = { font, asc: mm.fontBoundingBoxAscent || parseFloat(cs.fontSize) * 0.98, desc: mm.fontBoundingBoxDescent || parseFloat(cs.fontSize) * 0.29, head: !!el.closest(".head") };
+        fontCache.set(el.parentElement, f);
+      }
+      tctx.font = f.font;
+      tctx.globalAlpha = (f.head ? headA : 1) * b1A;
+      tctx.fillText(el.textContent, r.left, r.top + (r.height - (f.asc + f.desc)) / 2 + f.asc);
     }
+    tctx.globalAlpha = 1;
+    lgl.activeTexture(lgl.TEXTURE0); lgl.bindTexture(lgl.TEXTURE_2D, ltex);
+    lgl.pixelStorei(lgl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    lgl.texImage2D(lgl.TEXTURE_2D, 0, lgl.RGBA, lgl.RGBA, lgl.UNSIGNED_BYTE, tc);
+  }
+  const uPbuf = new Float32Array(TRAIL * 4), uAbuf = new Float32Array(TRAIL);
+  function updateLiquid(now, dt, movedPx) {
+    if (!lgl) return;
+    // record the cursor path with its velocity; old points fade out so letters spring back
+    if (movedPx > 0.5 && ptr.inside) trail.push({ x: ptr.x, y: ptr.y, vx: ptr.vx, vy: ptr.vy, age: 0 });
+    while (trail.length > TRAIL) trail.shift();
+    for (const p of trail) p.age += dt;
+    while (trail.length && trail[0].age > 0.75) trail.shift();
+    const sig = `${tpH.shown}|${getComputedStyle(head1).opacity}|${b1.style.opacity}|${W}x${H}|${Math.round(head1.getBoundingClientRect().top)}`;
+    if (sig !== lsig) { lsig = sig; drawLiquidText(); }
+    uAbuf.fill(0);
+    trail.forEach((p, i) => {
+      uPbuf[i * 4] = p.x; uPbuf[i * 4 + 1] = p.y; uPbuf[i * 4 + 2] = p.vx; uPbuf[i * 4 + 3] = p.vy;
+      const k = 1 - p.age / 0.75; uAbuf[i] = k * k * (3 - 2 * k) / Math.max(4, trail.length) * 4;
+    });
+    lgl.viewport(0, 0, lq.width, lq.height);
+    lgl.clearColor(0, 0, 0, 0); lgl.clear(lgl.COLOR_BUFFER_BIT);
+    lgl.uniform2f(lU.uRes, W, H);
+    lgl.uniform4fv(lU.uP, uPbuf); lgl.uniform1fv(lU.uA, uAbuf);
+    lgl.drawArrays(lgl.TRIANGLE_STRIP, 0, 4);
   }
 
   /* ---------- WebGL letters ---------- */
@@ -421,7 +503,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   let P = 0, target = 0;
   let windX = 0, windV = 0;
   const ptr = { x: -9999, y: -9999, mx: 0, my: 0, lastT: 0, emitX: 0, emitY: 0, vx: 0, vy: 0, inside: false };
-  let stir = 0;
+  let stir = 0, lastMoved = 0;
 
   function sampleN() {
     const hN = Math.min(H * 0.5, W * 0.62);
@@ -451,6 +533,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     [glc, sc].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
     if (!gl && !fctx) fctx = glc.getContext("2d");
     buildAtlas();
+    sizeLiquid();
     const narrow = W < 760;
     R = narrow ? Math.min(W * 0.34, H * 0.2) : Math.min(W * 0.18, H * 0.32, 420);
     c0 = narrow ? { x: W * 0.5, y: H * 0.36 } : { x: W * 0.49, y: H * 0.44 };
@@ -561,6 +644,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 
     // cursor energy for local pushes
     const moved = Math.hypot(ptr.mx, ptr.my);
+    lastMoved = moved;
     ptr.mx = ptr.my = 0;
     const active = moved > 0.5 && motion && q < 0.05;
     if (active) stir = Math.min(1.6, stir + Math.min(moved / Math.max(dt, 1e-3), 3000) / 1000 * dt * 0.6);
@@ -590,8 +674,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     const diag = Math.hypot(W, H);
     const gather = ease(clamp(q / 0.22));
     const ringR = lerp(R * 0.95, diag * 0.85, Math.pow(clamp((q - 0.08) / 0.92), 1.6));
-    const band = R * (0.42 + 0.9 * q);
-    const zoom = 1 + q * 1.6;
+    const band = R * (0.34 + 0.55 * q);
+    const zoom = 1 + q * 2.2;
     const ringFade = 1 - clamp((q - 0.86) / 0.14);
 
     let count = 0;
@@ -615,7 +699,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 
       if (q > 0) {
         const ra = bA[i] + t * 0.06 * motion + q * 0.6;
-        const rad2 = ringR + (bR[i] - 0.55) * band;
+        // most letters pack the middle of the band, where the edge of block 2 sits
+        const rad2 = ringR + ((delay[i] - 0.5) * 0.55 + (bR[i] - 0.6) * 0.45) * band;
         const g2 = clamp(gather * 1.25 - delay[i] * 0.25);
         hx = lerp(hx, cx + Math.cos(ra) * rad2, g2);
         hy = lerp(hy, cy + Math.sin(ra) * rad2, g2);
@@ -646,9 +731,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
       const glint = Math.pow(0.5 + 0.5 * Math.sin(t * twR[i] + ph), 40) * 0.75 * motion * mi;
       gT[i] += dt * gRate[i] * mi * motion;
       const lt = Math.max(light[i], glint, q * 0.35);
-      const alpha = (1 - halo * mi * (0.55 + 0.25 * Math.sin(t * 1.3 + ph))) * ringFade;
+      const alpha = (1 - halo * mi * (0.55 + 0.25 * Math.sin(t * 1.3 + ph)) * (1 - gather)) * ringFade;
       if (alpha <= 0.01) continue;
-      const s = size[i] * (1 + 0.15 * mi) * (1 - halo * mi * 0.35) * zoom;
+      const s = size[i] * (1 + 0.15 * mi) * (1 - halo * mi * 0.35 * (1 - gather)) * zoom;
       const o = count * STRIDE;
       data[o] = x; data[o + 1] = y; data[o + 2] = s; data[o + 3] = rot0[i] + Math.sin(spin[i] * 0.3) * 0.6;
       data[o + 4] = tilt; data[o + 5] = lt; data[o + 6] = alpha;
@@ -680,8 +765,8 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     glc.classList.toggle("front", q > 0.005);
     b2.classList.toggle("on", q > 0.005);
     if (q > 0.005 && q < 0.995) {
-      const hole = Math.max(0, (ringR - band * 0.55) * gather);
-      const m = `radial-gradient(circle at ${cx}px ${cy}px, #000 ${hole}px, transparent ${hole + Math.max(30, band * 0.35)}px)`;
+      const hole = Math.max(0, (ringR - band * 0.04) * gather);
+      const m = `radial-gradient(circle at ${cx}px ${cy}px, #000 ${hole}px, transparent ${hole + Math.max(10, band * 0.14)}px)`;
       b2.style.webkitMaskImage = m; b2.style.maskImage = m;
     } else { b2.style.webkitMaskImage = b2.style.maskImage = "none"; }
     b1.style.opacity = 1 - clamp((q - 0.6) / 0.3);
@@ -715,7 +800,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     if (Math.abs(target - P) < 1e-4) P = target;
     render(now, dt);
     drawSmoke(dt, now);
-    updateLens(now, dt);
+    updateLiquid(now, dt, lastMoved);
     requestAnimationFrame(frame);
   }
 
