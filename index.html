@@ -81,13 +81,13 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* ---------- block 2 "How it works", revealed inside the ring ---------- */
-.b2{position:absolute;inset:0;z-index:4;background:#120208;visibility:hidden;overflow:hidden;
-  --line:color-mix(in srgb, var(--paper) 14%, transparent);--muted:color-mix(in srgb, var(--paper) 62%, transparent)}
+.b2{position:absolute;inset:0;z-index:4;background:#ffffff;color:var(--ink);visibility:hidden;overflow:hidden;color-scheme:light;
+  --line:color-mix(in srgb, var(--ink) 10%, transparent);--muted:color-mix(in srgb, var(--ink) 55%, transparent)}
 .b2.on{visibility:visible}
 .b2 .glow{position:absolute;inset:-10%;pointer-events:none;filter:blur(40px);
   background:
-    radial-gradient(40vw 34vw at 74% 44%, rgba(230,81,0,.5), transparent 70%),
-    radial-gradient(30vw 26vw at 14% 96%, rgba(255,120,40,.22), transparent 70%);
+    radial-gradient(34vw 30vw at 76% 46%, rgba(255,138,61,.22), transparent 70%),
+    radial-gradient(26vw 22vw at 12% 100%, rgba(255,138,61,.12), transparent 70%);
   animation:drift 18s ease-in-out infinite alternate}
 @keyframes drift{from{transform:translate(-1.5%, -1%) rotate(-2deg)}to{transform:translate(1.5%, 1%) rotate(2deg)}}
 .b2 .head a,.b2 .head button{pointer-events:auto}
@@ -95,20 +95,20 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 .b2 .main h2{font-size:clamp(30px, 3.34vw, 64px);max-width:13em;text-wrap:balance}
 /* example summary card */
 .card{justify-self:end;width:min(34vw, 560px);padding:clamp(18px, 1.6vw, 30px);border-radius:22px;
-  background:color-mix(in srgb, #1d0a0c 72%, transparent);border:1px solid var(--line);backdrop-filter:blur(14px);
+  background:#ffffff;border:1px solid var(--line);box-shadow:0 40px 80px -40px rgba(10,0,25,.28), 0 2px 6px rgba(10,0,25,.04);
   display:grid;gap:clamp(12px, 1.1vw, 20px);font-size:clamp(13px, .94vw, 17px);line-height:1.35;letter-spacing:-.01em}
 .card .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .card .meet{font-weight:700;font-size:1.25em;letter-spacing:-.03em}
 .card .meta{color:var(--muted);font-variant-numeric:tabular-nums}
 .chip{display:inline-flex;align-items:center;gap:.45em;padding:.3em .75em;border-radius:999px;font-size:.82em;white-space:nowrap;
-  background:color-mix(in srgb, var(--ember) 18%, transparent);color:var(--ember-hi)}
-.chip i{width:.5em;height:.5em;border-radius:50%;background:var(--ember-hi)}
+  background:color-mix(in srgb, var(--ember) 10%, transparent);color:var(--ember)}
+.chip i{width:.5em;height:.5em;border-radius:50%;background:var(--ember)}
 .card .label{font-size:.75em;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .card .sum{margin:0}
 .tasks{list-style:none;margin:0;padding:0;display:grid;border-top:1px solid var(--line)}
 .tasks li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.8em;padding:.75em 0;border-bottom:1px solid var(--line);
   opacity:0;transform:translateY(8px);transition:opacity .5s ease, transform .5s ease}
-.tasks .box{width:1.15em;height:1.15em;border-radius:6px;border:1.5px solid color-mix(in srgb, var(--paper) 45%, transparent);
+.tasks .box{width:1.15em;height:1.15em;border-radius:6px;border:1.5px solid color-mix(in srgb, var(--ink) 30%, transparent);
   display:grid;place-items:center;transition:background .3s ease, border-color .3s ease}
 .tasks .box svg{width:.75em;height:.75em;opacity:0;transition:opacity .3s ease}
 .tasks .who{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -122,7 +122,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 .steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:calc(26.56vw - var(--pad)) calc(26.56vw - var(--pad)) 1fr;
   border-top:1px solid var(--line);padding-top:clamp(14px, 1.3vw, 24px)}
 .steps li{display:grid;gap:.4em;padding-right:2vw;font-size:clamp(13px, .94vw, 18px);line-height:1.25;letter-spacing:-.02em}
-.steps .n{color:var(--ember-hi);font-variant-numeric:tabular-nums;font-size:.85em}
+.steps .n{color:var(--ember);font-variant-numeric:tabular-nums;font-size:.85em}
 .steps b{font-size:1.2em;letter-spacing:-.03em}
 .steps span:last-child{color:var(--muted);max-width:22em}
 
@@ -279,6 +279,39 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   const tpLead = typer(document.getElementById("lead"));
   const tpSmall = typer(document.getElementById("small"));
 
+  /* ---------- lens: letters near the cursor slant, stretch and split into orange fringes ---------- */
+  const lensChars = [...tpH.chars];
+  document.querySelectorAll(".b1 .logo, .b1 .nav a").forEach(el => { split(el).forEach(c => { c.classList.add("on"); lensChars.push(c); }); });
+  const lens = lensChars.map(el => ({ el, x: 0, y: 0, fs: 16, e: 0, key: "" }));
+  let lensAt = -1;
+  function measureLens(now) {
+    if (now - lensAt < 400) return;
+    lensAt = now;
+    for (const L of lens) {
+      const r = L.el.getBoundingClientRect();
+      L.x = r.left + r.width / 2; L.y = r.top + r.height / 2; L.fs = r.height || 16;
+    }
+  }
+  function updateLens(now, dt) {
+    if (reduce) return;
+    measureLens(now);
+    const on = ptr.inside && P < 0.3;
+    for (const L of lens) {
+      const radius = Math.max(70, L.fs * 1.1);
+      const d = on ? Math.hypot(ptr.x - L.x, (ptr.y - L.y) * 1.4) : 1e9;
+      const want = clamp(1 - d / radius);
+      L.e += (want - L.e) * (1 - Math.exp(-dt * (want > L.e ? 16 : 3.5)));
+      if (L.e < 0.004) L.e = 0;
+      const e = L.e, key = e.toFixed(3);
+      if (key === L.key) continue;
+      L.key = key;
+      if (!e) { L.el.style.transform = L.el.style.textShadow = ""; continue; }
+      const o = L.fs * 0.06 * e;
+      L.el.style.transform = `skewX(${-13 * e}deg) scaleX(${1 + 0.16 * e})`;
+      L.el.style.textShadow = `${-o}px 0 rgba(255,170,90,${0.85 * e}), ${o}px 0 rgba(214,60,0,${0.85 * e}), 0 0 ${o * 2.5}px rgba(255,120,30,${0.35 * e})`;
+    }
+  }
+
   /* ---------- WebGL letters ---------- */
   let gl = null, prog, buf, uRes, uDpr, atlasTex;
   const STRIDE = 8;
@@ -371,7 +404,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     for (let k = 0; k < 14; k++) {
       const a = r() * Math.PI * 2, d = Math.pow(r(), 0.8) * 18, x = 48 + Math.cos(a) * d, y = 48 + Math.sin(a) * d, rad = 8 + r() * 18;
       const gr = g.createRadialGradient(x, y, 0, x, y, rad);
-      gr.addColorStop(0, "rgba(255,214,182,0.28)"); gr.addColorStop(1, "rgba(255,214,182,0)");
+      gr.addColorStop(0, "rgba(214,78,8,0.34)"); gr.addColorStop(1, "rgba(214,78,8,0)");
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
     }
     const o = document.createElement("canvas"); o.width = o.height = 96;
@@ -461,7 +494,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     ptr.x = x; ptr.y = y; ptr.lastT = now;
     if (reduce) return;
     let dx = x - ptr.emitX, dy = y - ptr.emitY, dist = Math.hypot(dx, dy);
-    const stepPx = 9;
+    const stepPx = 14;
     while (dist >= stepPx) {
       ptr.emitX += dx / dist * stepPx; ptr.emitY += dy / dist * stepPx;
       emit(ptr.emitX, ptr.emitY, ptr.vx, ptr.vy);
@@ -487,9 +520,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   function emit(x, y, vx, vy) {
     if (P > 0.02 || textDist(x, y) < 16) return;
     if (puffs.length > 240) puffs.shift();
-    puffs.push({ x, y, vx: vx * 0.08 + (Math.random() - .5) * 18, vy: vy * 0.08 + (Math.random() - .5) * 18 - 10,
-      age: 0, life: 0.45 + Math.random() * 0.35, s0: 8 + Math.random() * 6, s1: 26 + Math.random() * 22,
-      rot: Math.random() * 6.28, vr: (Math.random() - .5) * 0.8, a: 0.22 + Math.random() * 0.12 });
+    puffs.push({ x, y, vx: vx * 0.03 + (Math.random() - .5) * 14, vy: vy * 0.03 + (Math.random() - .5) * 14 - 6,
+      age: 0, life: 0.28 + Math.random() * 0.2, s0: 26 + Math.random() * 10, s1: 70 + Math.random() * 30,
+      rot: Math.random() * 6.28, vr: (Math.random() - .5) * 0.8, a: 0.42 + Math.random() * 0.16 });
   }
   addEventListener("pointermove", onMove, { passive: true });
   addEventListener("pointerdown", onMove, { passive: true });
@@ -682,6 +715,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     if (Math.abs(target - P) < 1e-4) P = target;
     render(now, dt);
     drawSmoke(dt, now);
+    updateLens(now, dt);
     requestAnimationFrame(frame);
   }
 
