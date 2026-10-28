@@ -8,7 +8,7 @@
 <title>Notely</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap">
 <style>
 /* Layout: one fixed full-screen stage. A ~3 s preloader turns the "n" into a cloud of letters,
    then the header and copy are typed in. Scrolling pulls the cloud closer into a ring that opens onto block 2. */
@@ -47,9 +47,19 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-ev
 .nav{display:flex;gap:clamp(10px, .84vw, 16px);font-size:clamp(14px, .94vw, 18px);letter-spacing:-.03em}
 .nav a{color:inherit;text-decoration:none;opacity:.92}
 .nav a:hover{opacity:1;text-decoration:underline;text-underline-offset:4px}
-.cta{font:500 clamp(15px, 1.25vw, 24px)/1.3 var(--font);letter-spacing:-.03em;color:#fff;
-  background:var(--ember);border:0;border-radius:0;padding:.33em 1.33em;cursor:pointer;transition:background .2s}
-.cta:hover{background:var(--ember-hi)}
+.cta{display:inline-grid;grid-template-columns:auto clamp(36px, 2.5vw, 48px);align-items:stretch;height:clamp(40px, 2.66vw, 51px);padding:0;
+  font:400 clamp(14px, .94vw, 18px)/1 var(--font);letter-spacing:-.03em;text-transform:uppercase;color:#fff;
+  background:transparent;border:1px solid currentColor;border-radius:0;cursor:pointer;transition:background .25s, color .25s, border-color .25s}
+.cta .t{display:flex;align-items:center;padding:0 clamp(16px, 1.04vw, 20px);min-width:clamp(96px, 6.8vw, 130px)}
+/* arrow cell, set off by short ticks at the top and bottom */
+.cta .a{position:relative;display:grid;place-items:center}
+.cta .a::before,.cta .a::after{content:"";position:absolute;left:0;width:1px;height:20%;background:currentColor}
+.cta .a::before{top:0}
+.cta .a::after{bottom:0}
+.cta svg{width:.6em;height:.6em}
+.cta:hover{background:var(--ember);border-color:var(--ember);color:#fff}
+.b2 .cta{color:var(--ember)}
+.b2 .cta:hover{color:#fff}
 a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset:3px}
 
 .big{font-weight:700;line-height:1;letter-spacing:-.08em;margin:0}
@@ -65,7 +75,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 .b1 .head a,.b1 .head button{pointer-events:auto}
 .b1{padding-bottom:calc(1vw + env(safe-area-inset-bottom, 0px))}
 .b1 .bottom{grid-row:3}
-.b1 .lead,.b1 .small{position:absolute;margin:0;font-size:clamp(15px, 1.25vw, 24px);line-height:1.2;letter-spacing:-.03em}
+.b1 .lead,.b1 .small{position:absolute;margin:0;font-size:clamp(15px, 1.25vw, 24px);font-weight:300;line-height:1.2;letter-spacing:-.03em}
 .b1 .lead{left:max(var(--pad), env(safe-area-inset-left, 0px));top:43.2vh;max-width:15.5em}
 .b1 .small{right:max(var(--pad), env(safe-area-inset-right, 0px));top:45.9vh}
 .headline{font-size:min(11.4vw, 24vh);white-space:nowrap;line-height:.86}
@@ -100,23 +110,22 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 @keyframes drift{from{transform:translate(-1.5%, -1%) scale(1)}to{transform:translate(1.5%, 1%) scale(1.04)}}
 .b2 .head a,.b2 .head button{pointer-events:auto}
 /* new grid: left edge, centre line, right edge (as the header: logo / menu / button) */
-.about{align-self:center;display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);column-gap:4vw;align-items:end;min-width:0}
-.about .left{display:grid;gap:clamp(16px, 1.6vw, 30px)}
-.eyebrow{display:inline-flex;align-items:center;gap:.5em;font-size:clamp(13px, .94vw, 18px);letter-spacing:-.02em}
+.about{align-self:center;display:grid;min-width:0;row-gap:clamp(16px, 1.6vw, 30px);
+  grid-template-columns:calc(var(--g1, 41.25vw) - var(--pad)) calc(var(--g2, 81.5vw) - var(--g1, 41.25vw)) minmax(0, 1fr)}
+.eyebrow{grid-column:1;display:inline-flex;align-items:center;gap:.5em;font-size:clamp(13px, .94vw, 18px);letter-spacing:-.02em}
 .eyebrow i{width:.5em;height:.5em;border-radius:50%;background:var(--ember)}
-.about h2{font-size:clamp(32px, 4.2vw, 80px);max-width:12.5em;text-wrap:balance}
-.about .story{justify-self:end;margin:0;max-width:15.5em;font-size:clamp(15px, 1.25vw, 24px);line-height:1.2;letter-spacing:-.03em}
-.facts{list-style:none;margin:0;padding:clamp(14px, 1.3vw, 24px) 0 0;display:grid;grid-template-columns:1fr auto 1fr;column-gap:4vw;
-  border-top:1px solid var(--line)}
-.facts li{display:grid;gap:.4em;font-size:clamp(13px, .94vw, 18px);line-height:1.25;letter-spacing:-.02em;max-width:22em}
-.facts li:nth-child(2){justify-self:center;text-align:center}
-.facts li:nth-child(3){justify-self:end;text-align:right}
-.facts b{font-size:1.2em;letter-spacing:-.03em}
-.facts span{color:var(--muted)}
+.about h2{grid-column:1;grid-row:2;font-size:clamp(32px, 4.2vw, 80px);max-width:12.5em;padding-right:2vw;text-wrap:balance}
+.about .story{grid-column:2;grid-row:2;align-self:start;margin:.35em 0 0;max-width:15.5em;padding-right:2vw;
+  font-size:clamp(15px, 1.25vw, 24px);font-weight:300;line-height:1.2;letter-spacing:-.03em}
+.facts{grid-column:3;grid-row:2;align-self:start;list-style:none;margin:.35em 0 0;padding:0;display:grid;gap:clamp(24px, 3.1vw, 60px)}
+.facts li{display:grid;gap:.45em;font-size:clamp(13px, .94vw, 18px);line-height:1.25;letter-spacing:-.02em}
+.facts b{font-size:1.1em;letter-spacing:-.03em}
+.facts span{color:var(--muted);font-weight:300}
 .b2 .about > *{opacity:0;transform:translateY(16px);transition:opacity .7s ease, transform .7s ease}
 .b2.live .about > *{opacity:1;transform:none}
-.b2.live .about > :nth-child(2){transition-delay:.12s}
-.b2.live .about > :nth-child(3){transition-delay:.24s}
+.b2.live .about > :nth-child(2){transition-delay:.1s}
+.b2.live .about > :nth-child(3){transition-delay:.2s}
+.b2.live .about > :nth-child(4){transition-delay:.3s}
 
 @media (max-width:760px){
   .head{grid-template-columns:1fr auto}
@@ -127,10 +136,9 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   .headline{white-space:normal;font-size:clamp(48px, 15vw, 110px);line-height:.9}
   .foot{grid-template-columns:1fr;gap:14px}
   .b2 .main{grid-template-columns:1fr;gap:20px;align-content:center}
-  .about{grid-template-columns:1fr;row-gap:20px}
-  .about .story{justify-self:start}
-  .facts{grid-template-columns:1fr;gap:10px}
-  .facts li:nth-child(n){justify-self:start;text-align:left}
+  .about{grid-template-columns:1fr;row-gap:18px}
+  .about h2,.about .story,.facts{grid-column:1;grid-row:auto;margin:0}
+  .facts{gap:12px}
   .facts span{display:none}
 }
 @media (prefers-reduced-motion:reduce){.ch.cur::after,.ch.cur0::after,.b2 .glow{animation:none}}
@@ -148,7 +156,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
       <nav class="nav" aria-label="Main">
         <a href="#">About us</a><a href="#">Results</a><a href="#">Answer</a><a href="#">Contact us</a>
       </nav>
-      <button class="cta" type="button">Free Trial</button>
+      <button class="cta" type="button"><span class="t">Free Trial</span><span class="a" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M3.5 2H8v4.5" stroke="currentColor" stroke-width="1.1"/></svg></span></button>
     </header>
     <div></div>
     <p class="lead" id="lead">NOTELY records your meetings, generates accurate summaries, and turns agreements into specific tasks. Automatically</p>
@@ -168,20 +176,19 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
         <nav class="nav" aria-label="Main">
           <a href="#">About us</a><a href="#">Results</a><a href="#">Answer</a><a href="#">Contact us</a>
         </nav>
-        <button class="cta" type="button">Free Trial</button>
+        <button class="cta" type="button"><span class="t">Free Trial</span><span class="a" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M3.5 2H8v4.5" stroke="currentColor" stroke-width="1.1"/></svg></span></button>
       </header>
       <div class="about">
-        <div class="left">
-          <span class="eyebrow"><i></i>About us</span>
-          <h2 class="big">We built notely. so every call ends with clear decisions, not scattered notes</h2>
-        </div>
+        <span class="eyebrow"><i></i>About us</span>
+        <h2 class="big">We built notely. so every call ends with clear decisions, not scattered notes</h2>
         <p class="story">We got tired of rewriting call notes by hand. notely. listens to your meetings so you can stay in the conversation, then sends everyone the same summary and task list right after the call.</p>
+        <ul class="facts">
+          <li><b>Who it’s for</b><span>Managers and programmers who make 5 or more calls a day.</span></li>
+          <li><b>What it does</b><span>Records meetings, writes accurate summaries and turns agreements into specific tasks.</span></li>
+          <li><b>How it feels</b><span>No unnecessary red tape: 5 seconds and you’re all set.</span></li>
+        </ul>
       </div>
-      <ul class="facts">
-        <li><b>Who it’s for</b><span>Managers and programmers who make 5 or more calls a day.</span></li>
-        <li><b>What it does</b><span>Records meetings, writes accurate summaries and turns agreements into specific tasks.</span></li>
-        <li><b>How it feels</b><span>No unnecessary red tape: 5 seconds and you’re all set.</span></li>
-      </ul>
+      <div></div>
     </div>
   </section>
 
@@ -511,6 +518,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     if (!gl && !fctx) fctx = glc.getContext("2d");
     buildAtlas();
     sizeLiquid();
+    const nav = document.querySelector(".b1 .nav"), small = document.getElementById("small");
+    const gr1 = nav && nav.getBoundingClientRect(), gr2 = small.getBoundingClientRect();
+    if (gr1 && gr1.width) stage.style.setProperty("--g1", gr1.left + "px");
+    if (gr2.width) stage.style.setProperty("--g2", gr2.left + "px");
     const narrow = W < 760;
     R = narrow ? Math.min(W * 0.34, H * 0.2) : Math.min(W * 0.18, H * 0.32, 420);
     c0 = narrow ? { x: W * 0.5, y: H * 0.36 } : { x: W * 0.49, y: H * 0.44 };
