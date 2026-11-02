@@ -106,13 +106,13 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
   letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* ---------- block 2 "About us", revealed inside the ring; background from the Figma frame ---------- */
-.b2{position:absolute;inset:0;z-index:4;background:#f7eee1;color:var(--ink);visibility:hidden;overflow:hidden;color-scheme:light;
-  --line:color-mix(in srgb, var(--ink) 12%, transparent);--muted:color-mix(in srgb, var(--ink) 58%, transparent)}
+.b2{position:absolute;inset:0;z-index:4;background:#120618;color:var(--paper);visibility:hidden;overflow:hidden;color-scheme:dark;
+  --line:color-mix(in srgb, var(--paper) 14%, transparent);--muted:color-mix(in srgb, var(--paper) 62%, transparent)}
 .b2.on{visibility:visible}
 .b2 .glow{position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(34vw 29vw at 76% 46%, rgba(246,176,120,.62), rgba(246,176,120,.28) 45%, transparent 72%),
-    radial-gradient(26vw 22vw at 12% 100%, rgba(246,176,120,.5), rgba(246,176,120,.2) 45%, transparent 72%);
+    radial-gradient(34vw 29vw at 76% 46%, rgba(230,81,0,.42), rgba(230,81,0,.16) 45%, transparent 72%),
+    radial-gradient(26vw 22vw at 12% 100%, rgba(230,81,0,.3), rgba(230,81,0,.1) 45%, transparent 72%);
   animation:drift 18s ease-in-out infinite alternate}
 @keyframes drift{from{transform:translate(-1.5%, -1%) scale(1)}to{transform:translate(1.5%, 1%) scale(1.04)}}
 .b2 .head a,.b2 .head button{pointer-events:auto}
@@ -125,10 +125,10 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 .hz-col{position:relative;min-width:0;padding-left:max(var(--pad), env(safe-area-inset-left, 0px));padding-right:var(--pad)}
 .hz-col.c1{display:grid;align-content:center;padding-bottom:4vh}
 .hz-col.c1 h2{font-size:clamp(36px, 5vw, 96px);letter-spacing:-.045em;line-height:1.08;max-width:9.6em;text-wrap:balance}
-.hz-col.c2{padding:0;overflow:hidden;background:#d9c4ad}
+.hz-col.c2{padding:0;overflow:hidden;background:#2a1a20}
 .hz-col.c2 img{width:100%;height:100%;object-fit:cover;object-position:62% 50%;display:block;transform:scale(1.06);will-change:transform}
 .hz-col.c2 .credit{position:absolute;right:12px;bottom:10px;font-size:11px;color:rgba(255,255,255,.75);text-decoration:none}
-.hz-col.c3{position:relative;background:transparent;padding-left:clamp(20px, 2.1vw, 40px);padding-top:clamp(28px, 9.5vh, 90px)}
+.hz-col.c3{position:relative;background:radial-gradient(60% 55% at 45% 62%, rgba(230,81,0,.38), rgba(230,81,0,.12) 50%, transparent 78%), #120618;padding-left:clamp(20px, 2.1vw, 40px);padding-top:clamp(28px, 9.5vh, 90px)}
 .hz-col.c3 .story{margin:0;max-width:15.2em;font-size:clamp(15px, 1.25vw, 24px);font-weight:300;line-height:1.2;letter-spacing:-.03em}
 
 @media (max-width:760px){
@@ -774,7 +774,7 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
     b2.classList.toggle("live", q > 0.8);
     hzTrack.style.transform = `translate3d(${-hzP * (W < 760 ? 1 : 0.5) * hzTrack.offsetWidth}px,0,0)`;
     hzImg.style.transform = `translate3d(${(1 - hzP) * 3}%,0,0) scale(1.06)`;
-    hzHead.style.opacity = 1 - hzP * 0.5;
+    hzHead.style.opacity = 1 - hzP * 0.85;
 
     // preloader bar and the intro typing
     const pct = Math.round(lp * 100);
