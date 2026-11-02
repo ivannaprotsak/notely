@@ -123,12 +123,15 @@ a:focus-visible,.cta:focus-visible{outline:2px solid currentColor;outline-offset
 /* photo + story slide in from the right half over the pinned headline (like bcgbuildingdesign.com.au) */
 .hz-track{position:absolute;top:0;bottom:0;left:50%;width:100%;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));will-change:transform}
 .hz-col{position:relative;min-width:0;padding-left:max(var(--pad), env(safe-area-inset-left, 0px));padding-right:var(--pad)}
-.hz-col.c1{display:grid;align-content:center;padding-bottom:4vh}
+/* headline and story share one top line */
+.hz{--top:clamp(28px, 9.5vh, 90px)}
+.hz-col.c1{display:grid;align-content:start;padding-top:var(--top)}
+.hz-col.c1 h2{margin-top:-.12em}
 .hz-col.c1 h2{font-size:clamp(36px, 5vw, 96px);letter-spacing:-.045em;line-height:1.08;max-width:9.6em;text-wrap:balance}
 .hz-col.c2{padding:0;overflow:hidden;background:#2a1a20}
 .hz-col.c2 img{width:100%;height:100%;object-fit:cover;object-position:62% 50%;display:block;transform:scale(1.06);will-change:transform}
 .hz-col.c2 .credit{position:absolute;right:12px;bottom:10px;font-size:11px;color:rgba(255,255,255,.75);text-decoration:none}
-.hz-col.c3{position:relative;background:radial-gradient(60% 55% at 45% 62%, rgba(230,81,0,.38), rgba(230,81,0,.12) 50%, transparent 78%), #120618;padding-left:clamp(20px, 2.1vw, 40px);padding-top:clamp(28px, 9.5vh, 90px)}
+.hz-col.c3{position:relative;background:radial-gradient(60% 55% at 45% 62%, rgba(230,81,0,.38), rgba(230,81,0,.12) 50%, transparent 78%), #120618;padding-left:clamp(20px, 2.1vw, 40px);padding-top:var(--top)}
 .hz-col.c3 .story{margin:0;max-width:15.2em;font-size:clamp(15px, 1.25vw, 24px);font-weight:300;line-height:1.2;letter-spacing:-.03em}
 
 @media (max-width:760px){
